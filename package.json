@@ -1,0 +1,47 @@
+{
+  "name": "quiniela-mundial-2026",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "tsx watch src/server/index.ts",
+    "dev:web": "vite --host 0.0.0.0",
+    "build": "npm run build:web && npm run build:server",
+    "build:web": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "start": "node dist/server/index.js",
+    "db:schema": "tsx src/server/db/schema.ts",
+    "db:seed": "tsx src/server/db/seed.ts",
+    "db:reset": "npm run db:schema && npm run db:seed",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.468.0",
+    "mysql2": "^3.12.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.5",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vite-tsconfig-paths": "^5.1.4"
+  }
+}
