@@ -6,6 +6,7 @@ import express from 'express';
 import { z } from 'zod';
 import { playerIdFor, requireAdmin, requirePlayer, signPlayerToken } from './auth.js';
 import { pool, query } from './db/pool.js';
+import { setupDatabase } from './db/setup.js';
 import { scorePick } from './scoring.js';
 
 const app = express();
@@ -221,6 +222,19 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   res.status(500).json({ error: 'SERVER_ERROR' });
 });
 
-app.listen(port, () => {
-  console.log(`Quiniela API listening on ${port}`);
+async function start() {
+  if (process.env.AUTO_SETUP === 'true') {
+    console.log('Running database setup');
+    await setupDatabase();
+    console.log('Database setup ready');
+  }
+
+  app.listen(port, () => {
+    console.log(`Quiniela API listening on ${port}`);
+  });
+}
+
+start().catch((error) => {
+  console.error(error);
+  process.exit(1);
 });

@@ -54,6 +54,7 @@ DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=
 DB_NAME=quiniela_mundial_2026
+AUTO_SETUP=false
 ```
 
 ## Base de datos
