@@ -469,7 +469,6 @@ function TeamStatsBlock({ title, stats }: { title: string; stats: TeamStats }) {
         <SquadLine label="MED" players={squad.midfielders} />
         <SquadLine label="DEL" players={squad.forwards} />
       </div>}
-      {stats?.source_name && <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{stats.source_name}</div>}
     </div>
   );
 }
