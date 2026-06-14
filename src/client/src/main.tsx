@@ -195,7 +195,12 @@ function App() {
     }
   }
 
-  useEffect(() => { if (player) load(); }, [player]);
+  useEffect(() => {
+    if (!player) return;
+    load();
+    const timer = window.setInterval(load, 15000);
+    return () => window.clearInterval(timer);
+  }, [player]);
   if (!player) return <Login onDone={() => setPlayer(api.player())} />;
 
   async function saveAlias() {
@@ -322,8 +327,39 @@ function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, s
         <TeamScore name={match.home_name} flag={match.home_flag} value={pick?.home_goals} locked={locked} onMinus={() => setScore(match, 'home_goals', -1)} onPlus={() => setScore(match, 'home_goals', 1)} />
         <TeamScore name={match.away_name} flag={match.away_flag} value={pick?.away_goals} locked={locked} onMinus={() => setScore(match, 'away_goals', -1)} onPlus={() => setScore(match, 'away_goals', 1)} />
       </div>
+      <MatchPicksPanel match={match} />
       {showStats && <StatsPanel match={match} />}
     </article>
+  );
+}
+
+function MatchPicksPanel({ match }: { match: Match }) {
+  const [open, setOpen] = useState(false);
+  const [picks, setPicks] = useState<MatchPick[]>([]);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next) {
+      const rows = await api.request<MatchPick[]>(`/api/matches/${match.id}/picks`);
+      setPicks(rows);
+    }
+  }
+
+  return (
+    <div className="border-t border-emerald-100 px-4 pb-4">
+      <button onClick={toggle} className="mt-1 w-full rounded-lg bg-slate-50 px-3 py-2 text-left text-sm font-black text-slate-600">
+        Picks familiares
+      </button>
+      {open && <div className="mt-2 overflow-hidden rounded-lg border border-slate-100">
+        {picks.length === 0 && <div className="p-3 text-center text-sm font-bold text-slate-400">Todavia no hay picks.</div>}
+        {picks.map((row) => <div key={row.player_id} className="grid grid-cols-[minmax(0,1fr)_70px_52px] items-center gap-2 border-t border-slate-100 px-3 py-2 first:border-t-0">
+          <b className="truncate text-sm">{row.alias}</b>
+          <span className="text-right text-sm font-black">{row.home_goals} - {row.away_goals}</span>
+          <span className="rounded-full bg-emerald-50 px-2 py-1 text-center text-xs font-black text-pitch">{row.points}</span>
+        </div>)}
+      </div>}
+    </div>
   );
 }
 
@@ -364,13 +400,14 @@ function StatsPanel({ match }: { match: Match }) {
 
 function TeamStatsBlock({ title, stats }: { title: string; stats: TeamStats }) {
   const form = stats?.form_json || [];
+  const hasOfficialStars = Boolean(stats?.stars_json?.length && stats.source_name && stats.source_name !== 'Curado inicial');
   return (
     <div className="rounded-md bg-white p-3">
       <h3 className="text-sm font-black text-slate-950">{title}</h3>
       <div className="mt-2 text-xs font-bold text-slate-500">Ranking FIFA: {stats?.fifa_rank ? `#${stats.fifa_rank}` : '-'}</div>
       <div className="mt-2 text-xs font-bold text-slate-500">Estrellas</div>
-      <div className="mt-1 text-sm text-slate-700">{stats?.stars_json?.length ? stats.stars_json.join(', ') : '-'}</div>
-      {stats?.source_name && <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{stats.source_name}</div>}
+      <div className="mt-1 text-sm text-slate-700">{hasOfficialStars ? stats!.stars_json!.join(', ') : 'Pendiente de fuente oficial'}</div>
+      {stats?.source_name && stats.source_name !== 'Curado inicial' && <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{stats.source_name}</div>}
       <div className="mt-2 flex gap-1">
         {form.length ? form.map((r, index) => <span key={index} className={`h-3 w-3 rounded-full ${r === 'W' ? 'bg-pitch' : r === 'D' ? 'bg-triondaGold' : 'bg-triondaRed'}`} />) : <span className="text-sm text-slate-400">-</span>}
       </div>
@@ -396,6 +433,7 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
   const [selected, setSelected] = useState('');
   const [matchPicks, setMatchPicks] = useState<MatchPick[]>([]);
   const selectedMatch = matches.find((match) => match.id === selected) || matches[0];
+  const selectedIndex = selectedMatch ? matches.findIndex((match) => match.id === selectedMatch.id) : -1;
 
   useEffect(() => {
     if (!selectedMatch) return;
@@ -403,21 +441,49 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
     api.request<MatchPick[]>(`/api/matches/${selectedMatch.id}/picks`).then(setMatchPicks).catch(() => setMatchPicks([]));
   }, [selectedMatch?.id]);
 
+  function moveMatch(delta: number) {
+    if (selectedIndex < 0) return;
+    const next = Math.max(0, Math.min(matches.length - 1, selectedIndex + delta));
+    setSelected(matches[next].id);
+  }
+
   return (
     <main className="mx-auto max-w-4xl py-6">
-      {standings[0] && <div className="mb-6 text-center"><div className="text-4xl">🥇</div><div className="text-xl font-black">{standings[0].alias}</div><div className="mx-auto mt-2 flex h-24 w-28 items-start justify-center rounded-t-lg bg-pitch pt-4 text-3xl font-black text-white">{standings[0].points}</div></div>}
+      {standings.length > 0 && <div className="mb-6 grid grid-cols-3 items-end gap-2 text-center">
+        {[standings[1], standings[0], standings[2]].map((row, index) => {
+          const heights = ['h-20', 'h-28', 'h-16'];
+          const medals = ['2', '1', '3'];
+          return <div key={row?.player_id || index} className="min-w-0">
+            <div className="truncate text-sm font-black text-slate-950">{row?.alias || '-'}</div>
+            <div className={`mt-2 flex ${heights[index]} items-start justify-center rounded-t-lg ${index === 1 ? 'bg-pitch' : 'bg-emerald-500'} pt-3 text-2xl font-black text-white`}>
+              {row ? row.points : 0}
+            </div>
+            <div className="bg-emerald-50 py-1 text-xs font-black text-pitch">#{medals[index]}</div>
+          </div>;
+        })}
+      </div>}
       <div className="overflow-hidden rounded-lg border border-emerald-200 bg-white">
-        <div className="grid grid-cols-[48px_1fr_70px_70px_70px] bg-pitch px-3 py-3 text-sm font-black text-white">
-          <span>#</span><span>Jugador</span><span>Pts</span><span>Res.</span><span>Exact.</span>
+        <div className="grid grid-cols-[34px_minmax(0,1fr)_52px_48px_54px] gap-2 bg-pitch px-3 py-3 text-xs font-black text-white sm:text-sm">
+          <span>#</span><span>Jugador</span><span className="text-right">Pts</span><span className="text-right">Res.</span><span className="text-right">Exact.</span>
         </div>
-        {standings.map((row) => <div key={row.player_id} className="grid grid-cols-[48px_1fr_70px_70px_70px] border-t border-emerald-100 px-3 py-4 text-base"><b className="text-triondaGold">{row.rank}</b><b>{row.alias}</b><b className="text-pitch">{row.points}</b><span>{row.results}</span><span>{row.exacts}</span></div>)}
+        {standings.map((row) => <div key={row.player_id} className="grid grid-cols-[34px_minmax(0,1fr)_52px_48px_54px] gap-2 border-t border-emerald-100 px-3 py-4 text-sm sm:text-base">
+          <b className="text-triondaGold">{row.rank}</b>
+          <b className="truncate">{row.alias}</b>
+          <b className="text-right text-pitch">{row.points}</b>
+          <span className="text-right">{row.results}</span>
+          <span className="text-right">{row.exacts}</span>
+        </div>)}
       </div>
       <p className="mt-5 text-center text-sm leading-6 text-slate-500">1 punto por resultado · 3 puntos por marcador exacto.</p>
       <section className="mt-6 rounded-lg border border-emerald-200 bg-white p-4">
         <h2 className="text-lg font-black">Picks por partido</h2>
-        <select className="input" value={selectedMatch?.id || ''} onChange={(e) => setSelected(e.target.value)}>
-          {matches.map((match) => <option key={match.id} value={match.id}>{localDay(match.kickoff_utc)} · {match.home_name} vs {match.away_name}</option>)}
-        </select>
+        <div className="mt-3 grid grid-cols-[48px_1fr_48px] items-center gap-2">
+          <button className="icon-btn !h-12 !w-12" disabled={selectedIndex <= 0} onClick={() => moveMatch(-1)}><ChevronLeft /></button>
+          <select className="input !mt-0" value={selectedMatch?.id || ''} onChange={(e) => setSelected(e.target.value)}>
+            {matches.map((match) => <option key={match.id} value={match.id}>{localDay(match.kickoff_utc)} · {match.home_name} vs {match.away_name}</option>)}
+          </select>
+          <button className="icon-btn !h-12 !w-12" disabled={selectedIndex >= matches.length - 1} onClick={() => moveMatch(1)}><ChevronRight /></button>
+        </div>
         {selectedMatch && <div className="mt-4 rounded-lg bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 font-black"><img src={flagUrl(selectedMatch.home_flag)} className="h-6 w-8 object-contain" alt="" />{selectedMatch.home_name}</div>
@@ -428,9 +494,9 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
         </div>}
         <div className="mt-3 overflow-hidden rounded-lg border border-slate-100">
           {matchPicks.length === 0 && <div className="p-4 text-center text-sm font-bold text-slate-400">Todavia no hay picks para este partido.</div>}
-          {matchPicks.map((pick) => <div key={pick.player_id} className="grid grid-cols-[1fr_80px_56px] items-center border-t border-slate-100 px-3 py-3 first:border-t-0">
-            <b>{pick.alias}</b>
-            <span className="text-center text-lg font-black">{pick.home_goals} - {pick.away_goals}</span>
+          {matchPicks.map((pick) => <div key={pick.player_id} className="grid grid-cols-[minmax(0,1fr)_76px_58px] items-center gap-2 border-t border-slate-100 px-3 py-3 first:border-t-0">
+            <b className="truncate">{pick.alias}</b>
+            <span className="text-right text-lg font-black">{pick.home_goals} - {pick.away_goals}</span>
             <span className="rounded-full bg-emerald-50 px-2 py-1 text-center text-sm font-black text-pitch">{pick.points} pts</span>
           </div>)}
         </div>
@@ -476,6 +542,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     setDraft({ ...draft, [match.id]: next });
     if (selected) {
       await admin(`/api/admin/picks/${selected}`, { method: 'PUT', body: JSON.stringify([next]) });
+      await reload();
     }
   }
   async function saveResult(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
