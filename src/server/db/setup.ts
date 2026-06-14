@@ -1,6 +1,6 @@
 import mysql from 'mysql2/promise';
 import { cdmxToUtcMysql, matchId, matches, teams } from '../data.js';
-import { teamStatsSeed } from '../statsSeed.js';
+import { fifaRankSeed, teamStatsSeed } from '../statsSeed.js';
 
 function connectionBase(database?: string) {
   return {
@@ -207,7 +207,7 @@ export async function setupDatabase() {
          verified_at = VALUES(verified_at)`,
       {
         team_code: teamCode,
-        fifa_rank: stats.fifaRank ?? null,
+        fifa_rank: stats.fifaRank ?? fifaRankSeed[teamCode] ?? null,
         world_cup_appearances: stats.worldCup?.appearances ?? null,
         world_cup_wins: stats.worldCup?.wins ?? null,
         world_cup_draws: stats.worldCup?.draws ?? null,
