@@ -76,7 +76,16 @@ export async function setupDatabase() {
     CREATE TABLE IF NOT EXISTS team_info (
       team_code CHAR(3) PRIMARY KEY,
       fifa_rank SMALLINT NULL,
+      world_cup_appearances SMALLINT NULL,
+      world_cup_wins SMALLINT NULL,
+      world_cup_draws SMALLINT NULL,
+      world_cup_losses SMALLINT NULL,
+      world_cup_goals_for SMALLINT NULL,
+      world_cup_goals_against SMALLINT NULL,
+      best_world_cup_result VARCHAR(120) NULL,
+      coach VARCHAR(120) NULL,
       stars_json JSON NULL,
+      squad_json JSON NULL,
       form_json JSON NULL,
       source_name VARCHAR(120) NULL,
       source_url VARCHAR(500) NULL,
@@ -108,6 +117,29 @@ export async function setupDatabase() {
   );
   if (activeColumns.length === 0) {
     await db.execute(`ALTER TABLE players ADD COLUMN active TINYINT NOT NULL DEFAULT 1 AFTER birth_year`);
+  }
+
+  const teamInfoColumns = [
+    ['world_cup_appearances', 'SMALLINT NULL AFTER fifa_rank'],
+    ['world_cup_wins', 'SMALLINT NULL AFTER world_cup_appearances'],
+    ['world_cup_draws', 'SMALLINT NULL AFTER world_cup_wins'],
+    ['world_cup_losses', 'SMALLINT NULL AFTER world_cup_draws'],
+    ['world_cup_goals_for', 'SMALLINT NULL AFTER world_cup_losses'],
+    ['world_cup_goals_against', 'SMALLINT NULL AFTER world_cup_goals_for'],
+    ['best_world_cup_result', 'VARCHAR(120) NULL AFTER world_cup_goals_against'],
+    ['coach', 'VARCHAR(120) NULL AFTER best_world_cup_result'],
+    ['squad_json', 'JSON NULL AFTER stars_json']
+  ];
+  for (const [columnName, columnDefinition] of teamInfoColumns) {
+    const [columns] = await db.execute<any[]>(
+      `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = 'team_info' AND COLUMN_NAME = :column_name`,
+      { schema_name: dbName, column_name: columnName }
+    );
+    if (columns.length === 0) {
+      await db.execute(`ALTER TABLE team_info ADD COLUMN ${columnName} ${columnDefinition}`);
+    }
   }
 
   for (const team of teams) {
@@ -147,13 +179,48 @@ export async function setupDatabase() {
 
   for (const [teamCode, stats] of Object.entries(teamStatsSeed)) {
     await db.execute(
-      `INSERT INTO team_info (team_code, stars_json, source_name, verified_at)
-       VALUES (:team_code, CAST(:stars_json AS JSON), :source_name, UTC_TIMESTAMP())
+      `INSERT INTO team_info (
+         team_code, fifa_rank, world_cup_appearances, world_cup_wins, world_cup_draws,
+         world_cup_losses, world_cup_goals_for, world_cup_goals_against,
+         best_world_cup_result, coach, stars_json, squad_json, source_name, source_url, verified_at
+       )
+       VALUES (
+         :team_code, :fifa_rank, :world_cup_appearances, :world_cup_wins, :world_cup_draws,
+         :world_cup_losses, :world_cup_goals_for, :world_cup_goals_against,
+         :best_world_cup_result, :coach, CAST(:stars_json AS JSON), CAST(:squad_json AS JSON),
+         :source_name, :source_url, UTC_TIMESTAMP()
+       )
        ON DUPLICATE KEY UPDATE
+         fifa_rank = VALUES(fifa_rank),
+         world_cup_appearances = VALUES(world_cup_appearances),
+         world_cup_wins = VALUES(world_cup_wins),
+         world_cup_draws = VALUES(world_cup_draws),
+         world_cup_losses = VALUES(world_cup_losses),
+         world_cup_goals_for = VALUES(world_cup_goals_for),
+         world_cup_goals_against = VALUES(world_cup_goals_against),
+         best_world_cup_result = VALUES(best_world_cup_result),
+         coach = VALUES(coach),
          stars_json = VALUES(stars_json),
+         squad_json = VALUES(squad_json),
          source_name = VALUES(source_name),
+         source_url = VALUES(source_url),
          verified_at = VALUES(verified_at)`,
-      { team_code: teamCode, stars_json: JSON.stringify(stats.stars), source_name: stats.sourceName }
+      {
+        team_code: teamCode,
+        fifa_rank: stats.fifaRank ?? null,
+        world_cup_appearances: stats.worldCup?.appearances ?? null,
+        world_cup_wins: stats.worldCup?.wins ?? null,
+        world_cup_draws: stats.worldCup?.draws ?? null,
+        world_cup_losses: stats.worldCup?.losses ?? null,
+        world_cup_goals_for: stats.worldCup?.goalsFor ?? null,
+        world_cup_goals_against: stats.worldCup?.goalsAgainst ?? null,
+        best_world_cup_result: stats.worldCup?.bestResult ?? null,
+        coach: stats.coach ?? null,
+        stars_json: JSON.stringify(stats.stars),
+        squad_json: JSON.stringify(stats.squad ?? null),
+        source_name: stats.sourceName,
+        source_url: stats.sourceUrl ?? null
+      }
     );
   }
 

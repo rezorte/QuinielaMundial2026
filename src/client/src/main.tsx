@@ -27,7 +27,16 @@ type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_
 type TeamStats = {
   team_code: string;
   fifa_rank: number | null;
+  world_cup_appearances: number | null;
+  world_cup_wins: number | null;
+  world_cup_draws: number | null;
+  world_cup_losses: number | null;
+  world_cup_goals_for: number | null;
+  world_cup_goals_against: number | null;
+  best_world_cup_result: string | null;
+  coach: string | null;
   stars_json: string[] | null;
+  squad_json: { goalkeepers?: string[]; defenders?: string[]; midfielders?: string[]; forwards?: string[] } | null;
   form_json: Array<'W' | 'D' | 'L'> | null;
   source_name: string | null;
   source_url: string | null;
@@ -428,20 +437,46 @@ function StatsPanel({ match }: { match: Match }) {
 }
 
 function TeamStatsBlock({ title, stats }: { title: string; stats: TeamStats }) {
+  const [squadOpen, setSquadOpen] = useState(false);
   const form = stats?.form_json || [];
-  const hasOfficialStars = Boolean(stats?.stars_json?.length && stats.source_name && stats.source_name !== 'Curado inicial');
+  const hasWorldCupStats = stats?.world_cup_appearances !== null && stats?.world_cup_appearances !== undefined;
+  const squad = stats?.squad_json;
   return (
-    <div className="rounded-md bg-white p-3">
+    <div className="rounded-md bg-white p-3 text-sm">
       <h3 className="text-sm font-black text-slate-950">{title}</h3>
       <div className="mt-2 text-xs font-bold text-slate-500">Ranking FIFA: {stats?.fifa_rank ? `#${stats.fifa_rank}` : '-'}</div>
-      <div className="mt-2 text-xs font-bold text-slate-500">Estrellas</div>
-      <div className="mt-1 text-sm text-slate-700">{hasOfficialStars ? stats!.stars_json!.join(', ') : 'Pendiente de fuente oficial'}</div>
-      {stats?.source_name && stats.source_name !== 'Curado inicial' && <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{stats.source_name}</div>}
+      {stats?.coach && <div className="mt-1 text-xs font-bold text-slate-500">DT: <span className="text-slate-700">{stats.coach}</span></div>}
+      <div className="mt-2 rounded-md bg-slate-50 p-2">
+        <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">Mundiales</div>
+        {hasWorldCupStats ? <>
+          <div className="mt-1 font-black text-slate-900">{stats!.world_cup_appearances} participaciones</div>
+          <div className="mt-1 text-xs font-bold text-slate-500">{stats!.world_cup_wins ?? 0}V · {stats!.world_cup_draws ?? 0}E · {stats!.world_cup_losses ?? 0}D</div>
+          <div className="text-xs font-bold text-slate-500">Goles {stats!.world_cup_goals_for ?? '-'} / {stats!.world_cup_goals_against ?? '-'}</div>
+          {stats!.best_world_cup_result && <div className="mt-1 text-xs font-bold text-slate-600">{stats!.best_world_cup_result}</div>}
+        </> : <div className="mt-1 text-xs font-bold text-slate-400">Historial pendiente</div>}
+      </div>
+      <div className="mt-2 text-xs font-bold text-slate-500">Jugadores a seguir</div>
+      <div className="mt-1 text-sm text-slate-700">{stats?.stars_json?.length ? stats.stars_json.join(', ') : 'Pendiente'}</div>
       <div className="mt-2 flex gap-1">
         {form.length ? form.map((r, index) => <span key={index} className={`h-3 w-3 rounded-full ${r === 'W' ? 'bg-pitch' : r === 'D' ? 'bg-triondaGold' : 'bg-triondaRed'}`} />) : <span className="text-sm text-slate-400">-</span>}
       </div>
+      {squad && <button onClick={() => setSquadOpen(!squadOpen)} className="mt-3 w-full rounded-md bg-emerald-50 px-2 py-2 text-xs font-black text-pitch">
+        {squadOpen ? 'Ocultar plantel' : 'Ver plantel'}
+      </button>}
+      {squadOpen && squad && <div className="mt-2 space-y-2 text-xs leading-5 text-slate-600">
+        <SquadLine label="POR" players={squad.goalkeepers} />
+        <SquadLine label="DEF" players={squad.defenders} />
+        <SquadLine label="MED" players={squad.midfielders} />
+        <SquadLine label="DEL" players={squad.forwards} />
+      </div>}
+      {stats?.source_name && <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{stats.source_name}</div>}
     </div>
   );
+}
+
+function SquadLine({ label, players }: { label: string; players?: string[] }) {
+  if (!players?.length) return null;
+  return <div><b className="text-slate-500">{label}:</b> {players.join(', ')}</div>;
 }
 
 function TeamScore({ name, flag, value, locked, onMinus, onPlus }: { name: string; flag: string; value?: number; locked: boolean; onMinus: () => void; onPlus: () => void }) {
