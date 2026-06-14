@@ -345,11 +345,11 @@ function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, s
           Resultado real:
         </span>
         <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-black text-slate-950">
-          <img src={match.home_flag} alt="" className="h-4 w-6 rounded-sm object-cover shadow-sm" />
+          <img src={flagUrl(match.home_flag)} alt="" className="h-4 w-6 rounded-sm object-cover shadow-sm" />
           <span>{match.home_goals}</span>
           <span className="text-slate-300">-</span>
           <span>{match.away_goals}</span>
-          <img src={match.away_flag} alt="" className="h-4 w-6 rounded-sm object-cover shadow-sm" />
+          <img src={flagUrl(match.away_flag)} alt="" className="h-4 w-6 rounded-sm object-cover shadow-sm" />
         </span>
         <span className="hidden text-slate-300 min-[360px]:inline">·</span>
         <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
