@@ -82,7 +82,37 @@ app.get('/api/settings', async (_req, res) => {
   const settings = await getSettings();
   res.json({
     late_picks_open: settings.late_picks_open === 'true',
-    reveal_picks: settings.reveal_picks === 'true'
+    reveal_picks: settings.reveal_picks === 'true',
+    show_team_stats: settings.show_team_stats === 'true'
+  });
+});
+
+app.get('/api/matches/:matchId/stats', async (req, res) => {
+  const rows = await query<any>(
+    `SELECT home, away FROM matches WHERE id = :match_id`,
+    { match_id: req.params.matchId }
+  );
+  if (!rows.length) return res.status(404).json({ error: 'MATCH_NOT_FOUND' });
+
+  const { home, away } = rows[0];
+  const teams = await query<any>(
+    `SELECT team_code, fifa_rank, stars_json, form_json, source_name, source_url, DATE_FORMAT(verified_at, '%Y-%m-%dT%H:%i:%sZ') verified_at
+     FROM team_info
+     WHERE team_code IN (:home, :away)`,
+    { home, away }
+  );
+  const h2h = await query<any>(
+    `SELECT team_a, team_b, DATE_FORMAT(last_match_date, '%Y-%m-%d') last_match_date, last_match_score, competition, source_name, source_url, DATE_FORMAT(verified_at, '%Y-%m-%dT%H:%i:%sZ') verified_at
+     FROM head_to_head
+     WHERE (team_a = :home AND team_b = :away) OR (team_a = :away AND team_b = :home)
+     LIMIT 1`,
+    { home, away }
+  );
+
+  res.json({
+    home: teams.find((team: any) => team.team_code === home) || null,
+    away: teams.find((team: any) => team.team_code === away) || null,
+    head_to_head: h2h[0] || null
   });
 });
 

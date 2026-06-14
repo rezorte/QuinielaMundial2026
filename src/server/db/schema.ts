@@ -76,6 +76,32 @@ async function main() {
       \`key\` VARCHAR(80) PRIMARY KEY,
       value VARCHAR(255) NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+    CREATE TABLE IF NOT EXISTS team_info (
+      team_code CHAR(3) PRIMARY KEY,
+      fifa_rank SMALLINT NULL,
+      stars_json JSON NULL,
+      form_json JSON NULL,
+      source_name VARCHAR(120) NULL,
+      source_url VARCHAR(500) NULL,
+      verified_at DATETIME NULL,
+      CONSTRAINT fk_team_info_team FOREIGN KEY (team_code) REFERENCES teams(code) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+    CREATE TABLE IF NOT EXISTS head_to_head (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      team_a CHAR(3) NOT NULL,
+      team_b CHAR(3) NOT NULL,
+      last_match_date DATE NULL,
+      last_match_score VARCHAR(20) NULL,
+      competition VARCHAR(120) NULL,
+      source_name VARCHAR(120) NULL,
+      source_url VARCHAR(500) NULL,
+      verified_at DATETIME NULL,
+      UNIQUE KEY uniq_h2h_pair (team_a, team_b),
+      CONSTRAINT fk_h2h_team_a FOREIGN KEY (team_a) REFERENCES teams(code) ON DELETE CASCADE,
+      CONSTRAINT fk_h2h_team_b FOREIGN KEY (team_b) REFERENCES teams(code) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 
   await db.end();
