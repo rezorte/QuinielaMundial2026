@@ -584,10 +584,18 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
         <div className="mt-4 border-t border-slate-100 pt-4">
           <h3 className="text-base font-black text-slate-950">Jugadores y años</h3>
           <div className="mt-3 space-y-3">
-            {players.map((player) => <div key={player.id} className="grid grid-cols-[1fr_88px_76px] gap-2">
-              <input className="h-11 rounded-lg border border-emerald-200 px-3 text-sm font-bold outline-none focus:border-pitch" value={player.alias} onChange={(e) => editPlayerLocal(player.id, 'alias', e.target.value)} />
-              <input className="h-11 rounded-lg border border-emerald-200 px-3 text-sm font-bold outline-none focus:border-pitch" value={player.birth_year || ''} inputMode="numeric" onChange={(e) => editPlayerLocal(player.id, 'birth_year', e.target.value.replace(/\D/g, '').slice(0, 4))} />
-              <button onClick={() => updatePlayer(player)} className="rounded-lg bg-pitch text-sm font-black text-white">Guardar</button>
+            {players.map((player) => <div key={player.id} className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
+              <div className="grid grid-cols-[1fr_92px] gap-2">
+                <label className="min-w-0">
+                  <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Nombre</span>
+                  <input className="h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-bold outline-none focus:border-pitch" value={player.alias} onChange={(e) => editPlayerLocal(player.id, 'alias', e.target.value)} />
+                </label>
+                <label>
+                  <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Año</span>
+                  <input className="h-11 w-full rounded-lg border border-emerald-200 bg-white px-3 text-sm font-bold outline-none focus:border-pitch" value={player.birth_year || ''} inputMode="numeric" onChange={(e) => editPlayerLocal(player.id, 'birth_year', e.target.value.replace(/\D/g, '').slice(0, 4))} />
+                </label>
+              </div>
+              <button onClick={() => updatePlayer(player)} className="mt-2 h-10 w-full rounded-lg bg-pitch text-sm font-black text-white">Guardar</button>
             </div>)}
           </div>
         </div>
