@@ -479,9 +479,9 @@ function TeamStatsBlock({ title, flag, stats }: { title: string; flag: string; s
 
       <div className="mt-3">
         <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">Jugadores a seguir</div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {stats?.stars_json?.length ? stats.stars_json.map((player) => <span key={player} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-700">{player}</span>) : <span className="text-sm font-bold text-slate-400">Pendiente</span>}
-        </div>
+        {stats?.stars_json?.length ? <ul className="mt-2 space-y-1.5">
+          {stats.stars_json.map((player) => <li key={player} className="rounded-md bg-slate-50 px-2.5 py-1.5 text-sm font-black leading-5 text-slate-700">{player}</li>)}
+        </ul> : <div className="mt-2 text-sm font-bold text-slate-400">Pendiente</div>}
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-3">
@@ -519,9 +519,11 @@ function RecordCell({ label, value, className }: { label: string; value: number;
 
 function SquadLine({ label, players }: { label: string; players?: string[] }) {
   if (!players?.length) return null;
-  return <div className="grid grid-cols-[34px_minmax(0,1fr)] gap-2">
-    <b className="text-slate-400">{label}</b>
-    <span>{players.join(', ')}</span>
+  return <div>
+    <b className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{label}</b>
+    <ul className="mt-1 space-y-1">
+      {players.map((player) => <li key={player} className="leading-5 text-slate-700">{player}</li>)}
+    </ul>
   </div>;
 }
 
