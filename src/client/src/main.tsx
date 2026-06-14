@@ -200,15 +200,40 @@ function NavButton(props: { active: boolean; onClick: () => void; icon: React.Re
   return <button onClick={props.onClick} className={`flex h-16 flex-col items-center justify-center gap-1 text-xs font-black ${props.active ? 'text-pitch' : 'text-slate-400'}`}>{props.icon}<span>{props.label}</span></button>;
 }
 
+function todayLocalKey() {
+  return localDateKey(new Date().toISOString());
+}
+
+function defaultDayIndex(days: string[]) {
+  if (!days.length) return 0;
+  const today = todayLocalKey();
+  const exact = days.indexOf(today);
+  if (exact >= 0) return exact;
+  const next = days.findIndex((day) => day >= today);
+  return next >= 0 ? next : days.length - 1;
+}
+
 function FillView({ matches, picks, setPicks, reload }: { matches: Match[]; picks: Record<string, Pick>; setPicks: (p: Record<string, Pick>) => void; reload: () => void }) {
   const days = Array.from(new Set(matches.map((m) => localDateKey(m.kickoff_utc))));
   const [index, setIndex] = useState(0);
   const dayMatches = matches.filter((m) => localDateKey(m.kickoff_utc) === days[index]);
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
 
-  function setScore(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
+  useEffect(() => {
+    setIndex(defaultDayIndex(days));
+  }, [days.join('|')]);
+
+  async function setScore(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
     if (match.locked) return;
     const current = picks[match.id] || { match_id: match.id, home_goals: 0, away_goals: 0 };
-    setPicks({ ...picks, [match.id]: { ...current, [side]: Math.max(0, Math.min(99, current[side] + delta)) } });
+    const next = { ...current, [side]: Math.max(0, Math.min(99, current[side] + delta)) };
+    setPicks({ ...picks, [match.id]: next });
+    setSaving({ ...saving, [match.id]: true });
+    await api.request('/api/picks', { method: 'POST', body: JSON.stringify([next]) }).catch((error) => {
+      if (error.status === 409) alert('Ese partido ya esta cerrado.');
+      else throw error;
+    });
+    setSaving((state) => ({ ...state, [match.id]: false }));
   }
 
   async function save() {
@@ -223,27 +248,27 @@ function FillView({ matches, picks, setPicks, reload }: { matches: Match[]; pick
     <main className="mx-auto max-w-4xl">
       <div className="my-6 flex items-center justify-between">
         <button className="icon-btn" disabled={index === 0} onClick={() => setIndex(index - 1)}><ChevronLeft /></button>
-        <div className="text-center">
-          <h2 className="text-3xl font-black capitalize text-slate-950">{days[index] ? localDay(dayMatches[0].kickoff_utc) : ''}</h2>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-pitch">Jornada {dayMatches[0]?.jornada} · {dayMatches.length} partidos</p>
+        <div className="min-w-0 px-3 text-center">
+          <h2 className="text-xl font-black capitalize leading-6 text-slate-950 sm:text-3xl">{days[index] ? localDay(dayMatches[0].kickoff_utc) : ''}</h2>
+          <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-pitch">Jornada {dayMatches[0]?.jornada} · {dayMatches.length} partidos</p>
         </div>
         <button className="icon-btn" disabled={index === days.length - 1} onClick={() => setIndex(index + 1)}><ChevronRight /></button>
       </div>
       <div className="space-y-4">
-        {dayMatches.map((match) => <MatchCard key={match.id} match={match} pick={picks[match.id]} setScore={setScore} />)}
+        {dayMatches.map((match) => <MatchCard key={match.id} match={match} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} />)}
       </div>
-      <button onClick={save} className="mt-5 h-14 w-full rounded-lg bg-pitch text-lg font-black text-white">Guardar</button>
+      <button onClick={save} className="mt-5 h-12 w-full rounded-lg bg-emerald-50 text-sm font-black text-pitch">Sincronizar picks</button>
     </main>
   );
 }
 
-function MatchCard({ match, pick, setScore, forceOpen = false }: { match: Match; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean }) {
+function MatchCard({ match, pick, setScore, forceOpen = false, saving = false }: { match: Match; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean; saving?: boolean }) {
   const locked = Boolean(match.locked) && !forceOpen;
   return (
     <article className="rounded-lg border border-emerald-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
         <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Grupo {match.grp} · {localTime(match.kickoff_utc)}</span>
-        {locked ? <span className="flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-black text-triondaRed"><Lock size={14} /> Cerrado</span> : null}
+        {saving ? <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-black text-pitch">Guardando</span> : locked ? <span className="flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-black text-triondaRed"><Lock size={14} /> Cerrado</span> : null}
       </div>
       <div className="grid grid-cols-2 gap-3 p-4">
         <TeamScore name={match.home_name} flag={match.home_flag} value={pick?.home_goals} locked={locked} onMinus={() => setScore(match, 'home_goals', -1)} onPlus={() => setScore(match, 'home_goals', 1)} />
@@ -342,10 +367,13 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     await admin(`/api/admin/picks/${selected}`, { method: 'PUT', body: JSON.stringify(Object.values(draft)) });
     alert('Pronosticos guardados');
   }
-  function changeDraft(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
+  async function changeDraft(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
     const current = draft[match.id] || { match_id: match.id, home_goals: 0, away_goals: 0 };
     const next = { ...current, [side]: Math.max(0, current[side] + delta) };
     setDraft({ ...draft, [match.id]: next });
+    if (selected) {
+      await admin(`/api/admin/picks/${selected}`, { method: 'PUT', body: JSON.stringify([next]) });
+    }
   }
   async function saveResult(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
     const current = { match_id: match.id, home_goals: match.home_goals ?? 0, away_goals: match.away_goals ?? 0 };
