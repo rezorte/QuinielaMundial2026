@@ -112,7 +112,8 @@ app.get('/api/settings', async (_req, res) => {
     reveal_picks: settings.reveal_picks === 'true',
     show_team_stats: settings.show_team_stats === 'true',
     registration_open: settings.registration_open !== 'false',
-    show_match_picks: settings.show_match_picks === 'true'
+    show_match_picks: settings.show_match_picks === 'true',
+    show_pick_scores: settings.show_pick_scores !== 'false'
   });
 });
 

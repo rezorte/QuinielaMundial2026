@@ -23,7 +23,7 @@ type ResultDraft = { match_id: string; home_goals: number | null; away_goals: nu
 type Player = { id: string; alias: string; display_name?: string; birth_year?: string };
 type Standing = { rank: number; player_id: string; alias: string; points: number; exacts: number; results: number };
 type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number };
-type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean; show_match_picks: boolean };
+type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean; show_match_picks: boolean; show_pick_scores: boolean };
 type TeamStats = {
   team_code: string;
   fifa_rank: number | null;
@@ -90,6 +90,19 @@ function localDateKey(iso: string) {
 
 function localTime(iso: string) {
   return new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Mexico_City' }).format(new Date(iso));
+}
+
+function outcome(home: number, away: number) {
+  if (home > away) return 'H';
+  if (home < away) return 'A';
+  return 'D';
+}
+
+function pickPoints(pick: Pick | undefined, match: Match) {
+  if (!pick || match.home_goals === null || match.away_goals === null) return null;
+  if (pick.home_goals === match.home_goals && pick.away_goals === match.away_goals) return 3;
+  if (outcome(pick.home_goals, pick.away_goals) === outcome(match.home_goals, match.away_goals)) return 1;
+  return 0;
 }
 
 function Login({ onDone }: { onDone: () => void }) {
@@ -180,7 +193,7 @@ function App() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [picks, setPicks] = useState<Record<string, Pick>>({});
   const [standings, setStandings] = useState<Standing[]>([]);
-  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true, show_match_picks: false });
+  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true, show_match_picks: false, show_pick_scores: true });
   const [aliasOpen, setAliasOpen] = useState(false);
   const [aliasDraft, setAliasDraft] = useState(player?.alias || '');
 
@@ -226,7 +239,7 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50 px-5 pb-24">
       <Brand player={player} onEditAlias={() => { setAliasDraft(player.alias); setAliasOpen(true); }} onSwitchUser={switchUser} />
-      {tab === 'fill' && <FillView matches={matches} picks={picks} setPicks={setPicks} showStats={settings.show_team_stats} showMatchPicks={settings.show_match_picks} />}
+      {tab === 'fill' && <FillView matches={matches} picks={picks} setPicks={setPicks} showStats={settings.show_team_stats} showMatchPicks={settings.show_match_picks} showPickScores={settings.show_pick_scores} />}
       {tab === 'table' && <TableView standings={standings} matches={matches} />}
       {tab === 'admin' && <AdminView matches={matches} reload={load} />}
       {aliasOpen && <div className="fixed inset-0 z-40 flex items-end bg-slate-950/30 p-4">
@@ -267,7 +280,7 @@ function defaultDayIndex(days: string[]) {
   return next >= 0 ? next : days.length - 1;
 }
 
-function FillView({ matches, picks, setPicks, showStats, showMatchPicks }: { matches: Match[]; picks: Record<string, Pick>; setPicks: (p: Record<string, Pick>) => void; showStats: boolean; showMatchPicks: boolean }) {
+function FillView({ matches, picks, setPicks, showStats, showMatchPicks, showPickScores }: { matches: Match[]; picks: Record<string, Pick>; setPicks: (p: Record<string, Pick>) => void; showStats: boolean; showMatchPicks: boolean; showPickScores: boolean }) {
   const days = Array.from(new Set(matches.map((m) => localDateKey(m.kickoff_utc))));
   const [index, setIndex] = useState(0);
   const dayMatches = matches.filter((m) => localDateKey(m.kickoff_utc) === days[index]);
@@ -306,7 +319,7 @@ function FillView({ matches, picks, setPicks, showStats, showMatchPicks }: { mat
         <button className="icon-btn" disabled={index === days.length - 1} onClick={() => setIndex(index + 1)}><ChevronRight /></button>
       </div>
       <div className="space-y-4">
-        {dayMatches.map((match) => <MatchCard key={match.id} match={match} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} showStats={showStats} showMatchPicks={showMatchPicks} />)}
+        {dayMatches.map((match) => <MatchCard key={match.id} match={match} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} showStats={showStats} showMatchPicks={showMatchPicks} showPickScores={showPickScores} />)}
       </div>
       <div className={`fixed bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full px-4 py-2 text-xs font-black shadow-sm transition-all ${isSaving ? 'bg-pitch text-white opacity-100' : savedPulse ? 'bg-emerald-50 text-pitch opacity-100' : 'pointer-events-none opacity-0'}`}>
         {isSaving ? 'Guardando...' : 'Guardado'}
@@ -315,8 +328,9 @@ function FillView({ matches, picks, setPicks, showStats, showMatchPicks }: { mat
   );
 }
 
-function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, showStats = false, showMatchPicks = false }: { match: Match; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean; saving?: boolean; showStats?: boolean; showMatchPicks?: boolean }) {
+function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, showStats = false, showMatchPicks = false, showPickScores = false }: { match: Match; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean; saving?: boolean; showStats?: boolean; showMatchPicks?: boolean; showPickScores?: boolean }) {
   const locked = Boolean(match.locked) && !forceOpen;
+  const points = pickPoints(pick, match);
   return (
     <article className="rounded-lg border border-emerald-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
@@ -327,6 +341,11 @@ function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, s
         <TeamScore name={match.home_name} flag={match.home_flag} value={pick?.home_goals} locked={locked} onMinus={() => setScore(match, 'home_goals', -1)} onPlus={() => setScore(match, 'home_goals', 1)} />
         <TeamScore name={match.away_name} flag={match.away_flag} value={pick?.away_goals} locked={locked} onMinus={() => setScore(match, 'away_goals', -1)} onPlus={() => setScore(match, 'away_goals', 1)} />
       </div>
+      {showPickScores && points !== null && <div className="mx-4 mb-4 rounded-lg bg-slate-50 px-3 py-2 text-center text-sm font-bold text-slate-600">
+        Resultado real: <span className="font-black text-slate-950">{match.home_goals} - {match.away_goals}</span>
+        <span className="mx-2 text-slate-300">·</span>
+        Tu pick: <span className="font-black text-slate-950">{points} pts</span>
+      </div>}
       {showMatchPicks && <MatchPicksPanel match={match} />}
       {showStats && <StatsPanel match={match} />}
     </article>
@@ -452,10 +471,11 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
       {standings.length > 0 && <div className="mb-6 grid grid-cols-3 items-end gap-2 text-center">
         {[standings[1], standings[0], standings[2]].map((row, index) => {
           const heights = ['h-20', 'h-28', 'h-16'];
+          const colors = ['bg-slate-400', 'bg-triondaGold', 'bg-[#B87333]'];
           const medals = ['2', '1', '3'];
           return <div key={row?.player_id || index} className="min-w-0">
             <div className="truncate text-sm font-black text-slate-950">{row?.alias || '-'}</div>
-            <div className={`mt-2 flex ${heights[index]} items-start justify-center rounded-t-lg ${index === 1 ? 'bg-pitch' : 'bg-emerald-500'} pt-3 text-2xl font-black text-white`}>
+            <div className={`mt-2 flex ${heights[index]} items-start justify-center rounded-t-lg ${colors[index]} pt-3 text-2xl font-black text-white`}>
               {row ? row.points : 0}
             </div>
             <div className="bg-emerald-50 py-1 text-xs font-black text-pitch">#{medals[index]}</div>
@@ -514,7 +534,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   const [name, setName] = useState('');
   const [year, setYear] = useState('');
   const [mode, setMode] = useState<'picks' | 'results' | 'settings'>('picks');
-  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true, show_match_picks: false });
+  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true, show_match_picks: false, show_pick_scores: true });
 
   async function admin<T>(url: string, options: RequestInit = {}) {
     return api.request<T>(url, { ...options, headers: { ...(options.headers || {}), 'x-admin-pin': pin } });
@@ -655,6 +675,15 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
           </div>
           <button onClick={() => updateSetting('show_match_picks', !settings.show_match_picks)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.show_match_picks ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
             {settings.show_match_picks ? 'Sí' : 'No'}
+          </button>
+        </div>
+        <div className="mt-4 border-t border-slate-100 pt-4 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-black text-slate-950">Mostrar resultado y puntos</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-500">Cuando ya haya resultado oficial, muestra debajo de tu pick el marcador real y tus puntos.</p>
+          </div>
+          <button onClick={() => updateSetting('show_pick_scores', !settings.show_pick_scores)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.show_pick_scores ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
+            {settings.show_pick_scores ? 'Sí' : 'No'}
           </button>
         </div>
         <div className="mt-4 border-t border-slate-100 pt-4">
