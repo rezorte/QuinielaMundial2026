@@ -34,7 +34,8 @@ async function main() {
        ('reveal_picks', 'false'),
        ('show_official_results', 'true'),
        ('late_picks_open', 'false'),
-       ('show_team_stats', 'false')
+       ('show_team_stats', 'false'),
+       ('registration_open', 'true')
        ON DUPLICATE KEY UPDATE value = value`
     );
 

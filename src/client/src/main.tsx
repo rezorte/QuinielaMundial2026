@@ -23,7 +23,7 @@ type ResultDraft = { match_id: string; home_goals: number | null; away_goals: nu
 type Player = { id: string; alias: string; display_name?: string; birth_year?: string };
 type Standing = { rank: number; player_id: string; alias: string; points: number; exacts: number; results: number };
 type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number };
-type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean };
+type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean };
 type TeamStats = {
   team_code: string;
   fifa_rank: number | null;
@@ -114,6 +114,8 @@ function Login({ onDone }: { onDone: () => void }) {
     } catch (err: any) {
       if (err.status === 409 && err.data?.error === 'NAME_EXISTS_WRONG_YEAR') {
         setError('Ese nombre ya existe. Usa el año correcto para continuar.');
+      } else if (err.status === 403 && err.data?.error === 'REGISTRATION_CLOSED') {
+        setError('El registro de nuevos jugadores está cerrado. Si ya habías entrado, usa el mismo nombre y año.');
       } else {
         setError('No se pudo entrar. Revisa los datos e intenta de nuevo.');
       }
@@ -178,7 +180,7 @@ function App() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [picks, setPicks] = useState<Record<string, Pick>>({});
   const [standings, setStandings] = useState<Standing[]>([]);
-  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false });
+  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true });
   const [aliasOpen, setAliasOpen] = useState(false);
   const [aliasDraft, setAliasDraft] = useState(player?.alias || '');
 
@@ -446,7 +448,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   const [name, setName] = useState('');
   const [year, setYear] = useState('');
   const [mode, setMode] = useState<'picks' | 'results' | 'settings'>('picks');
-  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false });
+  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true });
 
   async function admin<T>(url: string, options: RequestInit = {}) {
     return api.request<T>(url, { ...options, headers: { ...(options.headers || {}), 'x-admin-pin': pin } });
@@ -559,6 +561,15 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
           </div>
           <button onClick={() => updateSetting('late_picks_open', !settings.late_picks_open)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.late_picks_open ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
             {settings.late_picks_open ? 'Sí' : 'No'}
+          </button>
+        </div>
+        <div className="mt-4 border-t border-slate-100 pt-4 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-black text-slate-950">Permitir nuevos usuarios</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-500">Si lo apagas, solo podrán entrar jugadores ya registrados con su año correcto.</p>
+          </div>
+          <button onClick={() => updateSetting('registration_open', !settings.registration_open)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.registration_open ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
+            {settings.registration_open ? 'Sí' : 'No'}
           </button>
         </div>
         <div className="mt-4 border-t border-slate-100 pt-4 flex items-center justify-between gap-4">

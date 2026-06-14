@@ -67,6 +67,11 @@ app.post('/api/login', async (req, res) => {
     });
   }
 
+  const settings = await getSettings();
+  if (settings.registration_open === 'false') {
+    return res.status(403).json({ error: 'REGISTRATION_CLOSED' });
+  }
+
   const id = playerIdFor(nombre, anio);
   await pool.execute(
     `INSERT INTO players (id, alias, display_name, birth_year)
@@ -105,7 +110,8 @@ app.get('/api/settings', async (_req, res) => {
   res.json({
     late_picks_open: settings.late_picks_open === 'true',
     reveal_picks: settings.reveal_picks === 'true',
-    show_team_stats: settings.show_team_stats === 'true'
+    show_team_stats: settings.show_team_stats === 'true',
+    registration_open: settings.registration_open !== 'false'
   });
 });
 
