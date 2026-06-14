@@ -373,11 +373,6 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     await admin('/api/admin/player', { method: 'POST', body: JSON.stringify({ nombre: name, anio: year }) });
     setName(''); setYear(''); await loadPlayers();
   }
-  async function saveAdminPicks() {
-    if (!selected) return;
-    await admin(`/api/admin/picks/${selected}`, { method: 'PUT', body: JSON.stringify(Object.values(draft)) });
-    alert('Pronosticos guardados');
-  }
   async function changeDraft(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
     const current = draft[match.id] || { match_id: match.id, home_goals: 0, away_goals: 0 };
     const next = { ...current, [side]: Math.max(0, current[side] + delta) };
@@ -476,7 +471,6 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
           </article>;
         })}
       </div>}
-      {mode === 'picks' && <button onClick={saveAdminPicks} className="mt-5 h-14 w-full rounded-lg bg-pitch text-lg font-black text-white">Guardar picks del jugador</button>}
     </main>
   );
 }
