@@ -52,6 +52,14 @@ function localDay(iso: string) {
   return new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' }).format(new Date(iso));
 }
 
+function localWeekday(iso: string) {
+  return new Intl.DateTimeFormat('es-MX', { weekday: 'long', timeZone: 'America/Mexico_City' }).format(new Date(iso));
+}
+
+function localDateLabel(iso: string) {
+  return new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long', timeZone: 'America/Mexico_City' }).format(new Date(iso));
+}
+
 function localDateKey(iso: string) {
   const parts = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'America/Mexico_City' }).formatToParts(new Date(iso));
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
@@ -250,7 +258,8 @@ function FillView({ matches, picks, setPicks, reload }: { matches: Match[]; pick
       <div className="my-6 flex items-center justify-between">
         <button className="icon-btn" disabled={index === 0} onClick={() => setIndex(index - 1)}><ChevronLeft /></button>
         <div className="min-w-0 px-3 text-center">
-          <h2 className="text-xl font-black capitalize leading-6 text-slate-950 sm:text-3xl">{days[index] ? localDay(dayMatches[0].kickoff_utc) : ''}</h2>
+          <h2 className="text-xl font-black capitalize leading-6 text-slate-950 sm:text-3xl">{days[index] ? localWeekday(dayMatches[0].kickoff_utc) : ''}</h2>
+          <div className="text-base font-black capitalize leading-5 text-slate-500 sm:text-xl">{days[index] ? localDateLabel(dayMatches[0].kickoff_utc) : ''}</div>
           <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-pitch">Jornada {dayMatches[0]?.jornada} · {dayMatches.length} partidos</p>
         </div>
         <button className="icon-btn" disabled={index === days.length - 1} onClick={() => setIndex(index + 1)}><ChevronRight /></button>
@@ -268,7 +277,7 @@ function MatchCard({ match, pick, setScore, forceOpen = false, saving = false }:
   return (
     <article className="rounded-lg border border-emerald-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-        <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Grupo {match.grp} · {localTime(match.kickoff_utc)}</span>
+        <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Grupo {match.grp} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</span>
         {saving ? <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-black text-pitch">Guardando</span> : locked ? <span className="flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-black text-triondaRed"><Lock size={14} /> Cerrado</span> : null}
       </div>
       <div className="grid grid-cols-2 gap-3 p-4">
