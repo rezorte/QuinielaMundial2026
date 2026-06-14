@@ -340,10 +340,21 @@ function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, s
         <TeamScore name={match.home_name} flag={match.home_flag} value={pick?.home_goals} locked={locked} onMinus={() => setScore(match, 'home_goals', -1)} onPlus={() => setScore(match, 'home_goals', 1)} />
         <TeamScore name={match.away_name} flag={match.away_flag} value={pick?.away_goals} locked={locked} onMinus={() => setScore(match, 'away_goals', -1)} onPlus={() => setScore(match, 'away_goals', 1)} />
       </div>
-      {showPickScores && points !== null && <div className="mx-4 mb-4 rounded-lg bg-slate-50 px-3 py-2 text-center text-sm font-bold text-slate-600">
-        Resultado real: <span className="font-black text-slate-950">{match.home_goals} - {match.away_goals}</span>
-        <span className="mx-2 text-slate-300">·</span>
-        Tu pick: <span className="font-black text-slate-950">{points} pts</span>
+      {showPickScores && points !== null && <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
+        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
+          Resultado real:
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-black text-slate-950">
+          <img src={match.home_flag} alt="" className="h-4 w-6 rounded-sm object-cover shadow-sm" />
+          <span>{match.home_goals}</span>
+          <span className="text-slate-300">-</span>
+          <span>{match.away_goals}</span>
+          <img src={match.away_flag} alt="" className="h-4 w-6 rounded-sm object-cover shadow-sm" />
+        </span>
+        <span className="hidden text-slate-300 min-[360px]:inline">·</span>
+        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
+          Obtuviste: <span className="font-black text-slate-950">{points} pts</span>
+        </span>
       </div>}
       {showMatchPicks && <MatchPicksPanel match={match} />}
       {showStats && <StatsPanel match={match} />}
