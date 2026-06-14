@@ -181,7 +181,7 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50 px-5 pb-24">
       <Brand player={player} onEditAlias={() => { setAliasDraft(player.alias); setAliasOpen(true); }} onSwitchUser={switchUser} />
-      {tab === 'fill' && <FillView matches={matches} picks={picks} setPicks={setPicks} reload={load} />}
+      {tab === 'fill' && <FillView matches={matches} picks={picks} setPicks={setPicks} />}
       {tab === 'table' && <TableView standings={standings} matches={matches} />}
       {tab === 'admin' && <AdminView matches={matches} reload={load} />}
       {aliasOpen && <div className="fixed inset-0 z-40 flex items-end bg-slate-950/30 p-4">
@@ -222,11 +222,13 @@ function defaultDayIndex(days: string[]) {
   return next >= 0 ? next : days.length - 1;
 }
 
-function FillView({ matches, picks, setPicks, reload }: { matches: Match[]; picks: Record<string, Pick>; setPicks: (p: Record<string, Pick>) => void; reload: () => void }) {
+function FillView({ matches, picks, setPicks }: { matches: Match[]; picks: Record<string, Pick>; setPicks: (p: Record<string, Pick>) => void }) {
   const days = Array.from(new Set(matches.map((m) => localDateKey(m.kickoff_utc))));
   const [index, setIndex] = useState(0);
   const dayMatches = matches.filter((m) => localDateKey(m.kickoff_utc) === days[index]);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [savedPulse, setSavedPulse] = useState(false);
+  const isSaving = Object.values(saving).some(Boolean);
 
   useEffect(() => {
     setIndex(defaultDayIndex(days));
@@ -243,14 +245,8 @@ function FillView({ matches, picks, setPicks, reload }: { matches: Match[]; pick
       else throw error;
     });
     setSaving((state) => ({ ...state, [match.id]: false }));
-  }
-
-  async function save() {
-    await api.request('/api/picks', { method: 'POST', body: JSON.stringify(Object.values(picks)) }).catch((error) => {
-      if (error.status !== 409) throw error;
-      alert('Algunos partidos ya estaban cerrados y no se guardaron.');
-    });
-    await reload();
+    setSavedPulse(true);
+    window.setTimeout(() => setSavedPulse(false), 1200);
   }
 
   return (
@@ -267,7 +263,9 @@ function FillView({ matches, picks, setPicks, reload }: { matches: Match[]; pick
       <div className="space-y-4">
         {dayMatches.map((match) => <MatchCard key={match.id} match={match} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} />)}
       </div>
-      <button onClick={save} className="mt-5 h-12 w-full rounded-lg bg-emerald-50 text-sm font-black text-pitch">Sincronizar picks</button>
+      <div className={`fixed bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full px-4 py-2 text-xs font-black shadow-sm transition-all ${isSaving ? 'bg-pitch text-white opacity-100' : savedPulse ? 'bg-emerald-50 text-pitch opacity-100' : 'pointer-events-none opacity-0'}`}>
+        {isSaving ? 'Guardando...' : 'Guardado'}
+      </div>
     </main>
   );
 }
