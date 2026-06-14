@@ -22,6 +22,7 @@ type Pick = { match_id: string; home_goals: number; away_goals: number };
 type Player = { id: string; alias: string; display_name?: string; birth_year?: string };
 type Standing = { rank: number; player_id: string; alias: string; points: number; exacts: number; results: number };
 type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number };
+type AppSettings = { late_picks_open: boolean; reveal_picks: boolean };
 
 const api = {
   token: () => localStorage.getItem('qm_token') || '',
@@ -347,13 +348,16 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   const [draft, setDraft] = useState<Record<string, Pick>>({});
   const [name, setName] = useState('');
   const [year, setYear] = useState('');
-  const [mode, setMode] = useState<'picks' | 'results'>('picks');
+  const [mode, setMode] = useState<'picks' | 'results' | 'settings'>('picks');
+  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false });
 
   async function admin<T>(url: string, options: RequestInit = {}) {
     return api.request<T>(url, { ...options, headers: { ...(options.headers || {}), 'x-admin-pin': pin } });
   }
   async function loadPlayers() {
     const rows = await admin<Player[]>('/api/admin/players');
+    const currentSettings = await api.request<AppSettings>('/api/settings');
+    setSettings(currentSettings);
     setAdminReady(true);
     setPlayers(rows);
     if (!selected && rows[0]) setSelected(rows[0].id);
@@ -379,6 +383,13 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     const current = { match_id: match.id, home_goals: match.home_goals ?? 0, away_goals: match.away_goals ?? 0 };
     const next = { ...current, [side]: Math.max(0, current[side] + delta) };
     await admin('/api/admin/result', { method: 'POST', body: JSON.stringify(next) });
+    await reload();
+  }
+
+  async function updateSetting(key: keyof AppSettings, value: boolean) {
+    const next = { ...settings, [key]: value };
+    setSettings(next);
+    await admin('/api/admin/settings', { method: 'POST', body: JSON.stringify({ [key]: value }) });
     await reload();
   }
 
@@ -413,12 +424,23 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
         <div className="mt-3 flex flex-wrap gap-2">{players.map((p) => <button key={p.id} onClick={() => selectPlayer(p.id)} className={`rounded-full px-4 py-2 text-sm font-black ${selected === p.id ? 'bg-pitch text-white' : 'bg-emerald-50 text-slate-600'}`}>{p.alias}</button>)}</div>
         <div className="mt-4 grid grid-cols-[1fr_100px_48px] gap-2"><input className="input !mt-0" value={name} onChange={(e) => setName(e.target.value)} placeholder="Agregar jugador" /><input className="input !mt-0" value={year} onChange={(e) => setYear(e.target.value)} placeholder="Año" /><button onClick={addPlayer} className="rounded-lg bg-pitch text-white"><UserPlus className="mx-auto" /></button></div>
       </div>
-      <div className="mt-4 grid grid-cols-2 rounded-lg bg-emerald-50 p-1">
+      <div className="mt-4 grid grid-cols-3 rounded-lg bg-emerald-50 p-1">
         <button onClick={() => setMode('picks')} className={`h-11 rounded-md text-sm font-black ${mode === 'picks' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Editar picks</button>
         <button onClick={() => setMode('results')} className={`h-11 rounded-md text-sm font-black ${mode === 'results' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Resultados</button>
+        <button onClick={() => setMode('settings')} className={`h-11 rounded-md text-sm font-black ${mode === 'settings' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Ajustes</button>
       </div>
-      <h2 className="mt-6 text-lg font-black text-pitch">{mode === 'picks' ? 'Captura de WhatsApp' : 'Resultados oficiales'}</h2>
-      {mode === 'picks' ? <div className="mt-3 space-y-4">
+      <h2 className="mt-6 text-lg font-black text-pitch">{mode === 'picks' ? 'Captura de WhatsApp' : mode === 'results' ? 'Resultados oficiales' : 'Ajustes'}</h2>
+      {mode === 'settings' ? <section className="mt-3 rounded-lg border border-emerald-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-black text-slate-950">Permitir llenar partidos pasados</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-500">Úsalo para que cada quien capture lo que ya había mandado por WhatsApp. Al apagarlo, todo lo pasado vuelve a bloquearse.</p>
+          </div>
+          <button onClick={() => updateSetting('late_picks_open', !settings.late_picks_open)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.late_picks_open ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
+            {settings.late_picks_open ? 'Sí' : 'No'}
+          </button>
+        </div>
+      </section> : mode === 'picks' ? <div className="mt-3 space-y-4">
         {matches.map((match) => <MatchCard key={match.id} match={match} pick={draft[match.id]} setScore={changeDraft} forceOpen />)}
       </div> : <div className="mt-3 space-y-3">
         {matches.map((match) => {

@@ -52,10 +52,12 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.get('/api/matches', async (_req, res) => {
+  const settings = await getSettings();
+  const latePicksOpen = settings.late_picks_open === 'true';
   const rows = await query(`
     SELECT
       m.id, m.grp, m.jornada, DATE_FORMAT(m.kickoff_utc, '%Y-%m-%dT%H:%i:%sZ') kickoff_utc,
-      m.home_goals, m.away_goals, ${lockedExpr()} locked,
+      m.home_goals, m.away_goals, ${latePicksOpen ? '0' : lockedExpr()} locked,
       ht.code home_code, ht.name home_name, ht.flag home_flag,
       at.code away_code, at.name away_name, at.flag away_flag
     FROM matches m
@@ -64,6 +66,19 @@ app.get('/api/matches', async (_req, res) => {
     ORDER BY m.kickoff_utc, m.id
   `);
   res.json(rows);
+});
+
+async function getSettings() {
+  const rows = await query<{ key: string; value: string }>(`SELECT \`key\`, value FROM settings`);
+  return Object.fromEntries(rows.map((row) => [row.key, row.value]));
+}
+
+app.get('/api/settings', async (_req, res) => {
+  const settings = await getSettings();
+  res.json({
+    late_picks_open: settings.late_picks_open === 'true',
+    reveal_picks: settings.reveal_picks === 'true'
+  });
 });
 
 app.get('/api/picks/me', requirePlayer, async (req, res) => {
@@ -95,6 +110,8 @@ app.post('/api/picks', requirePlayer, async (req, res) => {
 
   const saved: string[] = [];
   const rejected: { match_id: string; reason: string }[] = [];
+  const settings = await getSettings();
+  const latePicksOpen = settings.late_picks_open === 'true';
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -107,7 +124,7 @@ app.post('/api/picks', requirePlayer, async (req, res) => {
         rejected.push({ match_id: item.match_id, reason: 'MATCH_NOT_FOUND' });
         continue;
       }
-      if (Boolean(matches[0].locked)) {
+      if (Boolean(matches[0].locked) && !latePicksOpen) {
         rejected.push({ match_id: item.match_id, reason: 'LOCKED' });
         continue;
       }

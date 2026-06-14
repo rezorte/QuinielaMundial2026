@@ -98,7 +98,8 @@ export async function setupDatabase() {
   await db.execute(
     `INSERT INTO settings (\`key\`, value) VALUES
      ('reveal_picks', 'false'),
-     ('show_official_results', 'true')
+     ('show_official_results', 'true'),
+     ('late_picks_open', 'false')
      ON DUPLICATE KEY UPDATE value = value`
   );
 
