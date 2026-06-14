@@ -354,6 +354,7 @@ function TeamStatsBlock({ title, stats }: { title: string; stats: TeamStats }) {
       <div className="mt-2 text-xs font-bold text-slate-500">Ranking FIFA: {stats?.fifa_rank ? `#${stats.fifa_rank}` : '-'}</div>
       <div className="mt-2 text-xs font-bold text-slate-500">Estrellas</div>
       <div className="mt-1 text-sm text-slate-700">{stats?.stars_json?.length ? stats.stars_json.join(', ') : '-'}</div>
+      {stats?.source_name && <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{stats.source_name}</div>}
       <div className="mt-2 flex gap-1">
         {form.length ? form.map((r, index) => <span key={index} className={`h-3 w-3 rounded-full ${r === 'W' ? 'bg-pitch' : r === 'D' ? 'bg-triondaGold' : 'bg-triondaRed'}`} />) : <span className="text-sm text-slate-400">-</span>}
       </div>

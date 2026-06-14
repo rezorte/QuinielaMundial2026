@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import { cdmxToUtcMysql, matchId, matches, teams } from '../data.js';
+import { teamStatsSeed } from '../statsSeed.js';
 
 function connectionBase(database?: string) {
   return {
@@ -129,6 +130,18 @@ export async function setupDatabase() {
      ('show_team_stats', 'false')
      ON DUPLICATE KEY UPDATE value = value`
   );
+
+  for (const [teamCode, stats] of Object.entries(teamStatsSeed)) {
+    await db.execute(
+      `INSERT INTO team_info (team_code, stars_json, source_name, verified_at)
+       VALUES (:team_code, CAST(:stars_json AS JSON), :source_name, UTC_TIMESTAMP())
+       ON DUPLICATE KEY UPDATE
+         stars_json = VALUES(stars_json),
+         source_name = VALUES(source_name),
+         verified_at = VALUES(verified_at)`,
+      { team_code: teamCode, stars_json: JSON.stringify(stats.stars), source_name: stats.sourceName }
+    );
+  }
 
   await db.end();
 }
