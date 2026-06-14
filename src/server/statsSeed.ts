@@ -77,6 +77,67 @@ export const fifaRankSeed: Record<string, number> = {
   NZL: 85
 };
 
+export const worldCupHistorySeed: Record<string, {
+  firstWorldCup: number;
+  coach: string;
+  appearances: number;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+}> = {
+  ARG: { firstWorldCup: 1930, coach: 'Lionel Scaloni', appearances: 18, played: 88, wins: 47, draws: 17, losses: 24, goalsFor: 152, goalsAgainst: 101 },
+  ESP: { firstWorldCup: 1934, coach: 'Luis de la Fuente', appearances: 16, played: 67, wins: 31, draws: 17, losses: 19, goalsFor: 108, goalsAgainst: 75 },
+  FRA: { firstWorldCup: 1930, coach: 'Didier Deschamps', appearances: 16, played: 73, wins: 39, draws: 14, losses: 20, goalsFor: 136, goalsAgainst: 85 },
+  ENG: { firstWorldCup: 1950, coach: 'Thomas Tuchel', appearances: 16, played: 74, wins: 32, draws: 22, losses: 20, goalsFor: 104, goalsAgainst: 68 },
+  POR: { firstWorldCup: 1966, coach: 'Roberto Martínez', appearances: 8, played: 35, wins: 17, draws: 6, losses: 12, goalsFor: 61, goalsAgainst: 41 },
+  BRA: { firstWorldCup: 1930, coach: 'Carlo Ancelotti', appearances: 22, played: 114, wins: 76, draws: 19, losses: 19, goalsFor: 237, goalsAgainst: 108 },
+  MAR: { firstWorldCup: 1970, coach: 'Mohamed Ouahbi', appearances: 6, played: 23, wins: 5, draws: 7, losses: 11, goalsFor: 20, goalsAgainst: 27 },
+  NED: { firstWorldCup: 1934, coach: 'Ronald Koeman', appearances: 11, played: 55, wins: 30, draws: 14, losses: 11, goalsFor: 96, goalsAgainst: 52 },
+  BEL: { firstWorldCup: 1930, coach: 'Rudi Garcia', appearances: 14, played: 51, wins: 21, draws: 10, losses: 20, goalsFor: 69, goalsAgainst: 74 },
+  GER: { firstWorldCup: 1934, coach: 'Julian Nagelsmann', appearances: 20, played: 112, wins: 68, draws: 21, losses: 23, goalsFor: 232, goalsAgainst: 130 },
+  CRO: { firstWorldCup: 1998, coach: 'Zlatko Dalić', appearances: 6, played: 30, wins: 13, draws: 8, losses: 9, goalsFor: 43, goalsAgainst: 33 },
+  COL: { firstWorldCup: 1962, coach: 'Néstor Lorenzo', appearances: 6, played: 22, wins: 9, draws: 3, losses: 10, goalsFor: 32, goalsAgainst: 30 },
+  MEX: { firstWorldCup: 1930, coach: 'Javier Aguirre', appearances: 17, played: 60, wins: 17, draws: 15, losses: 28, goalsFor: 62, goalsAgainst: 101 },
+  SEN: { firstWorldCup: 2002, coach: 'Pape Thiaw', appearances: 3, played: 12, wins: 5, draws: 3, losses: 4, goalsFor: 16, goalsAgainst: 17 },
+  URU: { firstWorldCup: 1930, coach: 'Marcelo Bielsa', appearances: 14, played: 59, wins: 25, draws: 13, losses: 21, goalsFor: 89, goalsAgainst: 76 },
+  USA: { firstWorldCup: 1930, coach: 'Mauricio Pochettino', appearances: 11, played: 37, wins: 9, draws: 8, losses: 20, goalsFor: 40, goalsAgainst: 66 },
+  JPN: { firstWorldCup: 1998, coach: 'Hajime Moriyasu', appearances: 7, played: 25, wins: 7, draws: 6, losses: 12, goalsFor: 25, goalsAgainst: 33 },
+  SUI: { firstWorldCup: 1934, coach: 'Murat Yakin', appearances: 12, played: 41, wins: 14, draws: 8, losses: 19, goalsFor: 55, goalsAgainst: 73 },
+  IRN: { firstWorldCup: 1978, coach: 'Amir Ghalenoei', appearances: 6, played: 18, wins: 3, draws: 4, losses: 11, goalsFor: 13, goalsAgainst: 31 },
+  TUR: { firstWorldCup: 1954, coach: 'Vincenzo Montella', appearances: 2, played: 10, wins: 5, draws: 1, losses: 4, goalsFor: 20, goalsAgainst: 17 },
+  ECU: { firstWorldCup: 2002, coach: 'Sebastián Beccacece', appearances: 4, played: 13, wins: 5, draws: 2, losses: 6, goalsFor: 14, goalsAgainst: 14 },
+  AUT: { firstWorldCup: 1934, coach: 'Ralf Rangnick', appearances: 7, played: 29, wins: 12, draws: 4, losses: 13, goalsFor: 43, goalsAgainst: 47 },
+  KOR: { firstWorldCup: 1954, coach: 'Hong Myung-bo', appearances: 11, played: 38, wins: 7, draws: 10, losses: 21, goalsFor: 39, goalsAgainst: 78 },
+  AUS: { firstWorldCup: 1974, coach: 'Tony Popovic', appearances: 6, played: 20, wins: 4, draws: 4, losses: 12, goalsFor: 17, goalsAgainst: 37 },
+  ALG: { firstWorldCup: 1982, coach: 'Vladimir Petković', appearances: 4, played: 13, wins: 3, draws: 3, losses: 7, goalsFor: 13, goalsAgainst: 19 },
+  EGY: { firstWorldCup: 1934, coach: 'Hossam Hassan', appearances: 3, played: 7, wins: 0, draws: 2, losses: 5, goalsFor: 5, goalsAgainst: 12 },
+  CAN: { firstWorldCup: 1986, coach: 'Jesse Marsch', appearances: 2, played: 6, wins: 0, draws: 0, losses: 6, goalsFor: 2, goalsAgainst: 12 },
+  NOR: { firstWorldCup: 1938, coach: 'Ståle Solbakken', appearances: 3, played: 9, wins: 2, draws: 3, losses: 3, goalsFor: 7, goalsAgainst: 8 },
+  CIV: { firstWorldCup: 2006, coach: 'Emerse Faé', appearances: 3, played: 9, wins: 3, draws: 1, losses: 5, goalsFor: 13, goalsAgainst: 14 },
+  PAN: { firstWorldCup: 2018, coach: 'Thomas Christiansen', appearances: 1, played: 3, wins: 0, draws: 0, losses: 3, goalsFor: 2, goalsAgainst: 11 },
+  SWE: { firstWorldCup: 1934, coach: 'Graham Potter', appearances: 12, played: 51, wins: 19, draws: 13, losses: 19, goalsFor: 80, goalsAgainst: 73 },
+  CZE: { firstWorldCup: 1934, coach: 'Miroslav Koubek', appearances: 9, played: 33, wins: 12, draws: 5, losses: 16, goalsFor: 47, goalsAgainst: 49 },
+  PAR: { firstWorldCup: 1930, coach: 'Gustavo Alfaro', appearances: 8, played: 27, wins: 7, draws: 10, losses: 10, goalsFor: 30, goalsAgainst: 38 },
+  SCO: { firstWorldCup: 1954, coach: 'Steve Clarke', appearances: 8, played: 23, wins: 4, draws: 7, losses: 12, goalsFor: 25, goalsAgainst: 41 },
+  TUN: { firstWorldCup: 1978, coach: 'Sabri Lamouchi', appearances: 6, played: 18, wins: 3, draws: 5, losses: 10, goalsFor: 14, goalsAgainst: 26 },
+  COD: { firstWorldCup: 1974, coach: 'Sébastien Desabre', appearances: 1, played: 3, wins: 0, draws: 0, losses: 3, goalsFor: 0, goalsAgainst: 14 },
+  UZB: { firstWorldCup: 2026, coach: 'Fabio Cannavaro', appearances: 1, played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 },
+  QAT: { firstWorldCup: 2022, coach: 'Julen Lopetegui', appearances: 1, played: 3, wins: 0, draws: 0, losses: 3, goalsFor: 1, goalsAgainst: 7 },
+  IRQ: { firstWorldCup: 1986, coach: 'Graham Arnold', appearances: 1, played: 3, wins: 0, draws: 0, losses: 3, goalsFor: 1, goalsAgainst: 4 },
+  RSA: { firstWorldCup: 1998, coach: 'Hugo Broos', appearances: 3, played: 9, wins: 2, draws: 4, losses: 3, goalsFor: 11, goalsAgainst: 16 },
+  KSA: { firstWorldCup: 1994, coach: 'Georgios Donis', appearances: 6, played: 19, wins: 4, draws: 2, losses: 13, goalsFor: 14, goalsAgainst: 44 },
+  JOR: { firstWorldCup: 2026, coach: 'Jamal Sellami', appearances: 1, played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 },
+  BIH: { firstWorldCup: 2014, coach: 'Sergej Barbarez', appearances: 1, played: 3, wins: 1, draws: 0, losses: 2, goalsFor: 4, goalsAgainst: 4 },
+  CPV: { firstWorldCup: 2026, coach: 'Pedro Leitão Brito', appearances: 1, played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 },
+  GHA: { firstWorldCup: 2006, coach: 'Carlos Queiroz', appearances: 4, played: 15, wins: 5, draws: 3, losses: 7, goalsFor: 18, goalsAgainst: 23 },
+  CUW: { firstWorldCup: 2026, coach: 'Dick Advocaat', appearances: 1, played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 },
+  HAI: { firstWorldCup: 1974, coach: 'Sébastien Migné', appearances: 1, played: 3, wins: 0, draws: 0, losses: 3, goalsFor: 2, goalsAgainst: 14 },
+  NZL: { firstWorldCup: 1982, coach: 'Darren Bazeley', appearances: 2, played: 6, wins: 0, draws: 3, losses: 3, goalsFor: 4, goalsAgainst: 14 }
+};
+
 export const teamStatsSeed: Record<string, TeamStatsSeed> = {
   GER: {
     stars: ['Jamal Musiala', 'Florian Wirtz', 'Joshua Kimmich'],

@@ -81,6 +81,7 @@ async function main() {
     CREATE TABLE IF NOT EXISTS team_info (
       team_code CHAR(3) PRIMARY KEY,
       fifa_rank SMALLINT NULL,
+      first_world_cup SMALLINT NULL,
       world_cup_appearances SMALLINT NULL,
       world_cup_wins SMALLINT NULL,
       world_cup_draws SMALLINT NULL,

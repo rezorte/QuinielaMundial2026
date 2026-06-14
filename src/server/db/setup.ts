@@ -1,6 +1,6 @@
 import mysql from 'mysql2/promise';
 import { cdmxToUtcMysql, matchId, matches, teams } from '../data.js';
-import { fifaRankSeed, teamStatsSeed } from '../statsSeed.js';
+import { fifaRankSeed, teamStatsSeed, worldCupHistorySeed } from '../statsSeed.js';
 
 function connectionBase(database?: string) {
   return {
@@ -76,6 +76,7 @@ export async function setupDatabase() {
     CREATE TABLE IF NOT EXISTS team_info (
       team_code CHAR(3) PRIMARY KEY,
       fifa_rank SMALLINT NULL,
+      first_world_cup SMALLINT NULL,
       world_cup_appearances SMALLINT NULL,
       world_cup_wins SMALLINT NULL,
       world_cup_draws SMALLINT NULL,
@@ -120,7 +121,8 @@ export async function setupDatabase() {
   }
 
   const teamInfoColumns = [
-    ['world_cup_appearances', 'SMALLINT NULL AFTER fifa_rank'],
+    ['first_world_cup', 'SMALLINT NULL AFTER fifa_rank'],
+    ['world_cup_appearances', 'SMALLINT NULL AFTER first_world_cup'],
     ['world_cup_wins', 'SMALLINT NULL AFTER world_cup_appearances'],
     ['world_cup_draws', 'SMALLINT NULL AFTER world_cup_wins'],
     ['world_cup_losses', 'SMALLINT NULL AFTER world_cup_draws'],
@@ -178,20 +180,22 @@ export async function setupDatabase() {
   );
 
   for (const [teamCode, stats] of Object.entries(teamStatsSeed)) {
+    const history = worldCupHistorySeed[teamCode];
     await db.execute(
       `INSERT INTO team_info (
-         team_code, fifa_rank, world_cup_appearances, world_cup_wins, world_cup_draws,
+         team_code, fifa_rank, first_world_cup, world_cup_appearances, world_cup_wins, world_cup_draws,
          world_cup_losses, world_cup_goals_for, world_cup_goals_against,
          best_world_cup_result, coach, stars_json, squad_json, source_name, source_url, verified_at
        )
        VALUES (
-         :team_code, :fifa_rank, :world_cup_appearances, :world_cup_wins, :world_cup_draws,
+         :team_code, :fifa_rank, :first_world_cup, :world_cup_appearances, :world_cup_wins, :world_cup_draws,
          :world_cup_losses, :world_cup_goals_for, :world_cup_goals_against,
          :best_world_cup_result, :coach, CAST(:stars_json AS JSON), CAST(:squad_json AS JSON),
          :source_name, :source_url, UTC_TIMESTAMP()
        )
        ON DUPLICATE KEY UPDATE
          fifa_rank = VALUES(fifa_rank),
+         first_world_cup = VALUES(first_world_cup),
          world_cup_appearances = VALUES(world_cup_appearances),
          world_cup_wins = VALUES(world_cup_wins),
          world_cup_draws = VALUES(world_cup_draws),
@@ -208,14 +212,15 @@ export async function setupDatabase() {
       {
         team_code: teamCode,
         fifa_rank: stats.fifaRank ?? fifaRankSeed[teamCode] ?? null,
-        world_cup_appearances: stats.worldCup?.appearances ?? null,
-        world_cup_wins: stats.worldCup?.wins ?? null,
-        world_cup_draws: stats.worldCup?.draws ?? null,
-        world_cup_losses: stats.worldCup?.losses ?? null,
-        world_cup_goals_for: stats.worldCup?.goalsFor ?? null,
-        world_cup_goals_against: stats.worldCup?.goalsAgainst ?? null,
-        best_world_cup_result: stats.worldCup?.bestResult ?? null,
-        coach: stats.coach ?? null,
+        first_world_cup: history?.firstWorldCup ?? null,
+        world_cup_appearances: history?.appearances ?? stats.worldCup?.appearances ?? null,
+        world_cup_wins: history?.wins ?? stats.worldCup?.wins ?? null,
+        world_cup_draws: history?.draws ?? stats.worldCup?.draws ?? null,
+        world_cup_losses: history?.losses ?? stats.worldCup?.losses ?? null,
+        world_cup_goals_for: history?.goalsFor ?? stats.worldCup?.goalsFor ?? null,
+        world_cup_goals_against: history?.goalsAgainst ?? stats.worldCup?.goalsAgainst ?? null,
+        best_world_cup_result: stats.worldCup?.bestResult ?? (history?.played === 0 ? 'Debut en 2026' : null),
+        coach: history?.coach ?? stats.coach ?? null,
         stars_json: JSON.stringify(stats.stars),
         squad_json: JSON.stringify(stats.squad ?? null),
         source_name: stats.sourceName,
