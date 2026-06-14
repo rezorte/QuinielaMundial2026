@@ -34,6 +34,18 @@ function lockedExpr() {
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
+async function findPlayerByAlias(alias: string, excludeId?: string) {
+  const rows = await query<any>(
+    `SELECT id, alias, display_name, birth_year
+     FROM players
+     WHERE LOWER(alias) = LOWER(:alias)
+       AND (:exclude_id IS NULL OR id <> :exclude_id)
+     LIMIT 1`,
+    { alias, exclude_id: excludeId || null }
+  );
+  return rows[0] || null;
+}
+
 app.post('/api/login', async (req, res) => {
   const parsed = z.object({
     nombre: z.string().min(2).max(80),
@@ -44,12 +56,22 @@ app.post('/api/login', async (req, res) => {
 
   const { nombre, anio } = parsed.data;
   const alias = (parsed.data.alias || nombre).trim();
-  const id = playerIdFor(nombre, anio);
+  const existing = await findPlayerByAlias(alias);
+  if (existing) {
+    if (existing.birth_year !== anio) {
+      return res.status(409).json({ error: 'NAME_EXISTS_WRONG_YEAR' });
+    }
+    return res.json({
+      token: signPlayerToken({ playerId: existing.id, alias: existing.alias }),
+      player: { id: existing.id, alias: existing.alias }
+    });
+  }
 
+  const id = playerIdFor(nombre, anio);
   await pool.execute(
     `INSERT INTO players (id, alias, display_name, birth_year)
      VALUES (:id, :alias, :display_name, :birth_year)
-     ON DUPLICATE KEY UPDATE alias = VALUES(alias), display_name = VALUES(display_name), birth_year = VALUES(birth_year)`,
+     ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), birth_year = VALUES(birth_year)`,
     { id, alias, display_name: nombre.trim(), birth_year: anio }
   );
 
@@ -130,6 +152,8 @@ app.put('/api/profile', requirePlayer, async (req, res) => {
     alias: z.string().trim().min(1).max(80)
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_PROFILE', issues: parsed.error.issues });
+  const duplicate = await findPlayerByAlias(parsed.data.alias, req.user!.playerId);
+  if (duplicate) return res.status(409).json({ error: 'ALIAS_ALREADY_EXISTS' });
 
   await pool.execute(
     `UPDATE players SET alias = :alias WHERE id = :player_id`,
@@ -246,6 +270,8 @@ app.post('/api/admin/player', requireAdmin, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_PLAYER', issues: parsed.error.issues });
   const id = playerIdFor(parsed.data.nombre, parsed.data.anio);
   const alias = (parsed.data.alias || parsed.data.nombre).trim();
+  const duplicate = await findPlayerByAlias(alias, id);
+  if (duplicate) return res.status(409).json({ error: 'ALIAS_ALREADY_EXISTS' });
   await pool.execute(
     `INSERT INTO players (id, alias, display_name, birth_year)
      VALUES (:id, :alias, :display_name, :birth_year)
@@ -253,6 +279,26 @@ app.post('/api/admin/player', requireAdmin, async (req, res) => {
     { id, alias, display_name: parsed.data.nombre.trim(), birth_year: parsed.data.anio }
   );
   res.json({ id, alias });
+});
+
+app.put('/api/admin/player/:playerId', requireAdmin, async (req, res) => {
+  const parsed = z.object({
+    alias: z.string().trim().min(1).max(80),
+    birth_year: z.string().regex(/^\d{4}$/)
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'INVALID_PLAYER', issues: parsed.error.issues });
+
+  const playerId = String(req.params.playerId);
+  const duplicate = await findPlayerByAlias(parsed.data.alias, playerId);
+  if (duplicate) return res.status(409).json({ error: 'ALIAS_ALREADY_EXISTS' });
+
+  await pool.execute(
+    `UPDATE players
+     SET alias = :alias, display_name = :alias, birth_year = :birth_year
+     WHERE id = :player_id`,
+    { alias: parsed.data.alias, birth_year: parsed.data.birth_year, player_id: playerId }
+  );
+  res.json({ id: playerId, alias: parsed.data.alias, birth_year: parsed.data.birth_year });
 });
 
 app.get('/api/admin/picks/:playerId', requireAdmin, async (req, res) => {

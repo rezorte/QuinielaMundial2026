@@ -97,10 +97,12 @@ function Login({ onDone }: { onDone: () => void }) {
   const [anio, setAnio] = useState('');
   const [alias, setAlias] = useState('');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setError('');
     try {
       const data = await api.request<{ token: string; player: Player }>('/api/login', {
         method: 'POST',
@@ -109,6 +111,12 @@ function Login({ onDone }: { onDone: () => void }) {
       localStorage.setItem('qm_token', data.token);
       localStorage.setItem('qm_player', JSON.stringify(data.player));
       onDone();
+    } catch (err: any) {
+      if (err.status === 409 && err.data?.error === 'NAME_EXISTS_WRONG_YEAR') {
+        setError('Ese nombre ya existe. Usa el año correcto para continuar.');
+      } else {
+        setError('No se pudo entrar. Revisa los datos e intenta de nuevo.');
+      }
     } finally {
       setBusy(false);
     }
@@ -129,6 +137,7 @@ function Login({ onDone }: { onDone: () => void }) {
         <input className="input" value={anio} onChange={(e) => setAnio(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="Ej. 1985" required />
         <label className="mt-5 block text-sm font-bold text-slate-950">Apodo <span className="font-medium text-slate-400">opcional</span></label>
         <input className="input" value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="Si lo dejas vacio, va tu nombre" />
+        {error && <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm font-bold text-triondaRed">{error}</div>}
         <button className="mt-7 h-14 w-full rounded-lg bg-pitch text-lg font-black text-white disabled:bg-emerald-200" disabled={busy || nombre.length < 2 || anio.length !== 4}>
           Entrar
         </button>
@@ -188,11 +197,16 @@ function App() {
   if (!player) return <Login onDone={() => setPlayer(api.player())} />;
 
   async function saveAlias() {
-    const updated = await api.request<Player>('/api/profile', { method: 'PUT', body: JSON.stringify({ alias: aliasDraft }) });
-    localStorage.setItem('qm_player', JSON.stringify(updated));
-    setPlayer(updated);
-    setAliasOpen(false);
-    await load();
+    try {
+      const updated = await api.request<Player>('/api/profile', { method: 'PUT', body: JSON.stringify({ alias: aliasDraft }) });
+      localStorage.setItem('qm_player', JSON.stringify(updated));
+      setPlayer(updated);
+      setAliasOpen(false);
+      await load();
+    } catch (err: any) {
+      if (err.status === 409) alert('Ese alias ya existe.');
+      else throw err;
+    }
   }
 
   function switchUser() {
@@ -446,8 +460,13 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     if (!selected && rows[0]) setSelected(rows[0].id);
   }
   async function addPlayer() {
-    await admin('/api/admin/player', { method: 'POST', body: JSON.stringify({ nombre: name, anio: year }) });
-    setName(''); setYear(''); await loadPlayers();
+    try {
+      await admin('/api/admin/player', { method: 'POST', body: JSON.stringify({ nombre: name, anio: year }) });
+      setName(''); setYear(''); await loadPlayers();
+    } catch (err: any) {
+      if (err.status === 409) alert('Ese nombre ya existe.');
+      else throw err;
+    }
   }
   async function changeDraft(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
     const current = draft[match.id] || { match_id: match.id, home_goals: 0, away_goals: 0 };
@@ -476,6 +495,23 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     setSettings(next);
     await admin('/api/admin/settings', { method: 'POST', body: JSON.stringify({ [key]: value }) });
     await reload();
+  }
+
+  async function updatePlayer(player: Player) {
+    try {
+      await admin(`/api/admin/player/${player.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ alias: player.alias, birth_year: player.birth_year })
+      });
+      await loadPlayers();
+    } catch (err: any) {
+      if (err.status === 409) alert('Ese nombre ya existe en otro jugador.');
+      else throw err;
+    }
+  }
+
+  function editPlayerLocal(playerId: string, field: 'alias' | 'birth_year', value: string) {
+    setPlayers(players.map((player) => player.id === playerId ? { ...player, [field]: value } : player));
   }
 
   async function selectPlayer(playerId: string) {
@@ -533,6 +569,16 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
           <button onClick={() => updateSetting('show_team_stats', !settings.show_team_stats)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.show_team_stats ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
             {settings.show_team_stats ? 'Sí' : 'No'}
           </button>
+        </div>
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <h3 className="text-base font-black text-slate-950">Jugadores y años</h3>
+          <div className="mt-3 space-y-3">
+            {players.map((player) => <div key={player.id} className="grid grid-cols-[1fr_88px_76px] gap-2">
+              <input className="h-11 rounded-lg border border-emerald-200 px-3 text-sm font-bold outline-none focus:border-pitch" value={player.alias} onChange={(e) => editPlayerLocal(player.id, 'alias', e.target.value)} />
+              <input className="h-11 rounded-lg border border-emerald-200 px-3 text-sm font-bold outline-none focus:border-pitch" value={player.birth_year || ''} inputMode="numeric" onChange={(e) => editPlayerLocal(player.id, 'birth_year', e.target.value.replace(/\D/g, '').slice(0, 4))} />
+              <button onClick={() => updatePlayer(player)} className="rounded-lg bg-pitch text-sm font-black text-white">Guardar</button>
+            </div>)}
+          </div>
         </div>
       </section> : mode === 'picks' ? <div className="mt-3 space-y-4">
         {matches.map((match) => <MatchCard key={match.id} match={match} pick={draft[match.id]} setScore={changeDraft} forceOpen />)}
