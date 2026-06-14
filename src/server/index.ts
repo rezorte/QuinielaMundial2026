@@ -75,6 +75,20 @@ app.get('/api/picks/me', requirePlayer, async (req, res) => {
   res.json(rows);
 });
 
+app.put('/api/profile', requirePlayer, async (req, res) => {
+  const parsed = z.object({
+    alias: z.string().trim().min(1).max(80)
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'INVALID_PROFILE', issues: parsed.error.issues });
+
+  await pool.execute(
+    `UPDATE players SET alias = :alias WHERE id = :player_id`,
+    { alias: parsed.data.alias, player_id: req.user!.playerId }
+  );
+
+  res.json({ id: req.user!.playerId, alias: parsed.data.alias });
+});
+
 app.post('/api/picks', requirePlayer, async (req, res) => {
   const parsed = z.array(pickSchema).min(1).max(72).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_PICKS', issues: parsed.error.issues });
@@ -143,6 +157,29 @@ app.get('/api/standings', async (_req, res) => {
   res.json(rows.map((row: any, index: number) => ({ ...row, rank: index + 1 })));
 });
 
+app.get('/api/matches/:matchId/picks', async (req, res) => {
+  const rows = await query<any>(
+    `SELECT
+      p.id player_id, p.alias,
+      pk.home_goals, pk.away_goals,
+      m.home_goals real_home_goals, m.away_goals real_away_goals
+     FROM picks pk
+     JOIN players p ON p.id = pk.player_id
+     JOIN matches m ON m.id = pk.match_id
+     WHERE pk.match_id = :match_id
+     ORDER BY p.alias`,
+    { match_id: req.params.matchId }
+  );
+
+  res.json(rows.map((row: any) => ({
+    player_id: row.player_id,
+    alias: row.alias,
+    home_goals: row.home_goals,
+    away_goals: row.away_goals,
+    points: scorePick(row.home_goals, row.away_goals, row.real_home_goals, row.real_away_goals).points
+  })));
+});
+
 app.get('/api/admin/players', requireAdmin, async (_req, res) => {
   const rows = await query(`SELECT id, alias, display_name, birth_year FROM players ORDER BY alias`);
   res.json(rows);
@@ -164,6 +201,15 @@ app.post('/api/admin/player', requireAdmin, async (req, res) => {
     { id, alias, display_name: parsed.data.nombre.trim(), birth_year: parsed.data.anio }
   );
   res.json({ id, alias });
+});
+
+app.get('/api/admin/picks/:playerId', requireAdmin, async (req, res) => {
+  const rows = await query(
+    `SELECT match_id, home_goals, away_goals, DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%sZ') updated_at
+     FROM picks WHERE player_id = :player_id`,
+    { player_id: req.params.playerId }
+  );
+  res.json(rows);
 });
 
 app.put('/api/admin/picks/:playerId', requireAdmin, async (req, res) => {
