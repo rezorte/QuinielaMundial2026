@@ -52,6 +52,7 @@ export async function setupDatabase() {
       alias VARCHAR(80) NOT NULL,
       display_name VARCHAR(120) NOT NULL,
       birth_year CHAR(4) NOT NULL,
+      active TINYINT NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -98,6 +99,16 @@ export async function setupDatabase() {
       CONSTRAINT fk_h2h_team_b FOREIGN KEY (team_b) REFERENCES teams(code) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
+
+  const [activeColumns] = await db.execute<any[]>(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = 'players' AND COLUMN_NAME = 'active'`,
+    { schema_name: dbName }
+  );
+  if (activeColumns.length === 0) {
+    await db.execute(`ALTER TABLE players ADD COLUMN active TINYINT NOT NULL DEFAULT 1 AFTER birth_year`);
+  }
 
   for (const team of teams) {
     await db.execute(

@@ -36,7 +36,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 async function findPlayerByAlias(alias: string, excludeId?: string) {
   const rows = await query<any>(
-    `SELECT id, alias, display_name, birth_year
+    `SELECT id, alias, display_name, birth_year, active
      FROM players
      WHERE LOWER(alias) = LOWER(:alias)
        AND (:exclude_id IS NULL OR id <> :exclude_id)
@@ -60,6 +60,9 @@ app.post('/api/login', async (req, res) => {
   if (existing) {
     if (existing.birth_year !== anio) {
       return res.status(409).json({ error: 'NAME_EXISTS_WRONG_YEAR' });
+    }
+    if (!Number(existing.active)) {
+      return res.status(403).json({ error: 'USER_INACTIVE' });
     }
     return res.json({
       token: signPlayerToken({ playerId: existing.id, alias: existing.alias }),
@@ -157,18 +160,18 @@ app.get('/api/picks/me', requirePlayer, async (req, res) => {
 
 app.put('/api/profile', requirePlayer, async (req, res) => {
   const parsed = z.object({
-    alias: z.string().trim().min(1).max(80)
+    nombre: z.string().trim().min(1).max(80)
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_PROFILE', issues: parsed.error.issues });
-  const duplicate = await findPlayerByAlias(parsed.data.alias, req.user!.playerId);
+  const duplicate = await findPlayerByAlias(parsed.data.nombre, req.user!.playerId);
   if (duplicate) return res.status(409).json({ error: 'ALIAS_ALREADY_EXISTS' });
 
   await pool.execute(
-    `UPDATE players SET alias = :alias WHERE id = :player_id`,
-    { alias: parsed.data.alias, player_id: req.user!.playerId }
+    `UPDATE players SET alias = :alias, display_name = :alias WHERE id = :player_id AND active = 1`,
+    { alias: parsed.data.nombre, player_id: req.user!.playerId }
   );
 
-  res.json({ id: req.user!.playerId, alias: parsed.data.alias });
+  res.json({ id: req.user!.playerId, alias: parsed.data.nombre });
 });
 
 app.post('/api/picks', requirePlayer, async (req, res) => {
@@ -179,6 +182,10 @@ app.post('/api/picks', requirePlayer, async (req, res) => {
   const rejected: { match_id: string; reason: string }[] = [];
   const settings = await getSettings();
   const latePicksOpen = settings.late_picks_open === 'true';
+  const activePlayers = await query<any>(`SELECT active FROM players WHERE id = :player_id`, { player_id: req.user!.playerId });
+  if (!activePlayers.length || !Number(activePlayers[0].active)) {
+    return res.status(403).json({ error: 'USER_INACTIVE' });
+  }
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -235,6 +242,7 @@ app.get('/api/standings', async (_req, res) => {
     FROM players p
     LEFT JOIN picks pk ON pk.player_id = p.id
     LEFT JOIN matches m ON m.id = pk.match_id
+    WHERE p.active = 1
     GROUP BY p.id, p.alias
     ORDER BY points DESC, exacts DESC, results DESC, p.alias ASC
   `);
@@ -250,7 +258,7 @@ app.get('/api/matches/:matchId/picks', async (req, res) => {
      FROM picks pk
      JOIN players p ON p.id = pk.player_id
      JOIN matches m ON m.id = pk.match_id
-     WHERE pk.match_id = :match_id
+     WHERE pk.match_id = :match_id AND p.active = 1
      ORDER BY p.alias`,
     { match_id: req.params.matchId }
   );
@@ -265,7 +273,7 @@ app.get('/api/matches/:matchId/picks', async (req, res) => {
 });
 
 app.get('/api/admin/players', requireAdmin, async (_req, res) => {
-  const rows = await query(`SELECT id, alias, display_name, birth_year FROM players ORDER BY alias`);
+  const rows = await query(`SELECT id, alias, display_name, birth_year, active FROM players ORDER BY alias`);
   res.json(rows);
 });
 
@@ -291,22 +299,23 @@ app.post('/api/admin/player', requireAdmin, async (req, res) => {
 
 app.put('/api/admin/player/:playerId', requireAdmin, async (req, res) => {
   const parsed = z.object({
-    alias: z.string().trim().min(1).max(80),
-    birth_year: z.string().regex(/^\d{4}$/)
+    nombre: z.string().trim().min(1).max(80),
+    birth_year: z.string().regex(/^\d{4}$/),
+    active: z.boolean()
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_PLAYER', issues: parsed.error.issues });
 
   const playerId = String(req.params.playerId);
-  const duplicate = await findPlayerByAlias(parsed.data.alias, playerId);
+  const duplicate = await findPlayerByAlias(parsed.data.nombre, playerId);
   if (duplicate) return res.status(409).json({ error: 'ALIAS_ALREADY_EXISTS' });
 
   await pool.execute(
     `UPDATE players
-     SET alias = :alias, display_name = :alias, birth_year = :birth_year
+     SET alias = :alias, display_name = :alias, birth_year = :birth_year, active = :active
      WHERE id = :player_id`,
-    { alias: parsed.data.alias, birth_year: parsed.data.birth_year, player_id: playerId }
+    { alias: parsed.data.nombre, birth_year: parsed.data.birth_year, active: parsed.data.active ? 1 : 0, player_id: playerId }
   );
-  res.json({ id: playerId, alias: parsed.data.alias, birth_year: parsed.data.birth_year });
+  res.json({ id: playerId, alias: parsed.data.nombre, birth_year: parsed.data.birth_year, active: parsed.data.active });
 });
 
 app.get('/api/admin/picks/:playerId', requireAdmin, async (req, res) => {

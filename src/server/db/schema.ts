@@ -57,6 +57,7 @@ async function main() {
       alias VARCHAR(80) NOT NULL,
       display_name VARCHAR(120) NOT NULL,
       birth_year CHAR(4) NOT NULL,
+      active TINYINT NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

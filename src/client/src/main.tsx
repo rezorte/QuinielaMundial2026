@@ -20,7 +20,7 @@ type Match = {
 };
 type Pick = { match_id: string; home_goals: number; away_goals: number };
 type ResultDraft = { match_id: string; home_goals: number | null; away_goals: number | null };
-type Player = { id: string; alias: string; display_name?: string; birth_year?: string };
+type Player = { id: string; alias: string; display_name?: string; birth_year?: string; active?: boolean | 0 | 1 };
 type Standing = { rank: number; player_id: string; alias: string; points: number; exacts: number; results: number };
 type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number };
 type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean; show_match_picks: boolean; show_pick_scores: boolean };
@@ -108,7 +108,6 @@ function pickPoints(pick: Pick | undefined, match: Match) {
 function Login({ onDone }: { onDone: () => void }) {
   const [nombre, setNombre] = useState('');
   const [anio, setAnio] = useState('');
-  const [alias, setAlias] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -119,7 +118,7 @@ function Login({ onDone }: { onDone: () => void }) {
     try {
       const data = await api.request<{ token: string; player: Player }>('/api/login', {
         method: 'POST',
-        body: JSON.stringify({ nombre, anio, alias: alias || undefined })
+        body: JSON.stringify({ nombre, anio })
       });
       localStorage.setItem('qm_token', data.token);
       localStorage.setItem('qm_player', JSON.stringify(data.player));
@@ -129,6 +128,8 @@ function Login({ onDone }: { onDone: () => void }) {
         setError('Ese nombre ya existe. Usa el año correcto para continuar.');
       } else if (err.status === 403 && err.data?.error === 'REGISTRATION_CLOSED') {
         setError('El registro de nuevos jugadores está cerrado. Si ya habías entrado, usa el mismo nombre y año.');
+      } else if (err.status === 403 && err.data?.error === 'USER_INACTIVE') {
+        setError('Este usuario está desactivado. Pide al organizador que lo active.');
       } else {
         setError('No se pudo entrar. Revisa los datos e intenta de nuevo.');
       }
@@ -150,8 +151,6 @@ function Login({ onDone }: { onDone: () => void }) {
         <input className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Maria" required />
         <label className="mt-5 block text-sm font-bold text-slate-950">Año de nacimiento</label>
         <input className="input" value={anio} onChange={(e) => setAnio(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="Ej. 1985" required />
-        <label className="mt-5 block text-sm font-bold text-slate-950">Apodo <span className="font-medium text-slate-400">opcional</span></label>
-        <input className="input" value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="Si lo dejas vacio, va tu nombre" />
         {error && <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm font-bold text-triondaRed">{error}</div>}
         <button className="mt-7 h-14 w-full rounded-lg bg-pitch text-lg font-black text-white disabled:bg-emerald-200" disabled={busy || nombre.length < 2 || anio.length !== 4}>
           Entrar
@@ -216,15 +215,15 @@ function App() {
   }, [player]);
   if (!player) return <Login onDone={() => setPlayer(api.player())} />;
 
-  async function saveAlias() {
+  async function saveName() {
     try {
-      const updated = await api.request<Player>('/api/profile', { method: 'PUT', body: JSON.stringify({ alias: aliasDraft }) });
+      const updated = await api.request<Player>('/api/profile', { method: 'PUT', body: JSON.stringify({ nombre: aliasDraft }) });
       localStorage.setItem('qm_player', JSON.stringify(updated));
       setPlayer(updated);
       setAliasOpen(false);
       await load();
     } catch (err: any) {
-      if (err.status === 409) alert('Ese alias ya existe.');
+      if (err.status === 409) alert('Ese nombre ya existe.');
       else throw err;
     }
   }
@@ -244,11 +243,11 @@ function App() {
       {tab === 'admin' && <AdminView matches={matches} reload={load} />}
       {aliasOpen && <div className="fixed inset-0 z-40 flex items-end bg-slate-950/30 p-4">
         <div className="mx-auto w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
-          <h2 className="text-lg font-black">Cambiar alias</h2>
-          <input className="input" value={aliasDraft} onChange={(e) => setAliasDraft(e.target.value)} placeholder="Tu alias" />
+          <h2 className="text-lg font-black">Cambiar nombre</h2>
+          <input className="input" value={aliasDraft} onChange={(e) => setAliasDraft(e.target.value)} placeholder="Tu nombre" />
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button onClick={() => setAliasOpen(false)} className="h-12 rounded-lg bg-slate-100 font-black text-slate-600">Cancelar</button>
-            <button onClick={saveAlias} className="h-12 rounded-lg bg-pitch font-black text-white">Guardar</button>
+            <button onClick={saveName} className="h-12 rounded-lg bg-pitch font-black text-white">Guardar</button>
           </div>
         </div>
       </div>}
@@ -545,7 +544,8 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     setSettings(currentSettings);
     setAdminReady(true);
     setPlayers(rows);
-    if (!selected && rows[0]) setSelected(rows[0].id);
+    const activeRows = rows.filter((player) => Boolean(player.active));
+    if (!selected && activeRows[0]) setSelected(activeRows[0].id);
   }
   async function addPlayer() {
     try {
@@ -590,7 +590,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     try {
       await admin(`/api/admin/player/${player.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ alias: player.alias, birth_year: player.birth_year })
+        body: JSON.stringify({ nombre: player.alias, birth_year: player.birth_year, active: Boolean(player.active) })
       });
       await loadPlayers();
     } catch (err: any) {
@@ -599,7 +599,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     }
   }
 
-  function editPlayerLocal(playerId: string, field: 'alias' | 'birth_year', value: string) {
+  function editPlayerLocal(playerId: string, field: 'alias' | 'birth_year' | 'active', value: string | boolean) {
     setPlayers(players.map((player) => player.id === playerId ? { ...player, [field]: value } : player));
   }
 
@@ -631,7 +631,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     <main className="mx-auto max-w-4xl py-5">
       <div className="mt-4 rounded-lg border border-emerald-200 bg-white p-4">
         <h2 className="font-black">Jugadores</h2>
-        <div className="mt-3 flex flex-wrap gap-2">{players.map((p) => <button key={p.id} onClick={() => selectPlayer(p.id)} className={`rounded-full px-4 py-2 text-sm font-black ${selected === p.id ? 'bg-pitch text-white' : 'bg-emerald-50 text-slate-600'}`}>{p.alias}</button>)}</div>
+        <div className="mt-3 flex flex-wrap gap-2">{players.filter((p) => Boolean(p.active)).map((p) => <button key={p.id} onClick={() => selectPlayer(p.id)} className={`rounded-full px-4 py-2 text-sm font-black ${selected === p.id ? 'bg-pitch text-white' : 'bg-emerald-50 text-slate-600'}`}>{p.alias}</button>)}</div>
         <div className="mt-4 grid grid-cols-[1fr_100px_48px] gap-2"><input className="input !mt-0" value={name} onChange={(e) => setName(e.target.value)} placeholder="Agregar jugador" /><input className="input !mt-0" value={year} onChange={(e) => setYear(e.target.value)} placeholder="Año" /><button onClick={addPlayer} className="rounded-lg bg-pitch text-white"><UserPlus className="mx-auto" /></button></div>
       </div>
       <div className="mt-4 grid grid-cols-3 rounded-lg bg-emerald-50 p-1">
@@ -687,9 +687,9 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
           </button>
         </div>
         <div className="mt-4 border-t border-slate-100 pt-4">
-          <h3 className="text-base font-black text-slate-950">Jugadores y años</h3>
+          <h3 className="text-base font-black text-slate-950">Jugadores</h3>
           <div className="mt-3 space-y-3">
-            {players.map((player) => <div key={player.id} className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
+            {players.map((player) => <div key={player.id} className={`rounded-lg border p-3 ${Boolean(player.active) ? 'border-emerald-100 bg-emerald-50/40' : 'border-slate-200 bg-slate-50 opacity-80'}`}>
               <div className="grid grid-cols-[1fr_92px] gap-2">
                 <label className="min-w-0">
                   <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Nombre</span>
@@ -699,6 +699,12 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
                   <span className="mb-1 block text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Año</span>
                   <input className="h-11 w-full rounded-lg border border-emerald-200 bg-white px-3 text-sm font-bold outline-none focus:border-pitch" value={player.birth_year || ''} inputMode="numeric" onChange={(e) => editPlayerLocal(player.id, 'birth_year', e.target.value.replace(/\D/g, '').slice(0, 4))} />
                 </label>
+              </div>
+              <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2">
+                <span className="text-sm font-black text-slate-600">Activo</span>
+                <button onClick={() => editPlayerLocal(player.id, 'active', !Boolean(player.active))} className={`h-9 min-w-14 rounded-full px-3 text-sm font-black ${Boolean(player.active) ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
+                  {Boolean(player.active) ? 'Sí' : 'No'}
+                </button>
               </div>
               <button onClick={() => updatePlayer(player)} className="mt-2 h-10 w-full rounded-lg bg-pitch text-sm font-black text-white">Guardar</button>
             </div>)}
