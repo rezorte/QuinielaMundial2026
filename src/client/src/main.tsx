@@ -29,6 +29,7 @@ type TeamStats = {
   fifa_rank: number | null;
   first_world_cup: number | null;
   world_cup_appearances: number | null;
+  world_cup_played: number | null;
   world_cup_wins: number | null;
   world_cup_draws: number | null;
   world_cup_losses: number | null;
@@ -420,13 +421,13 @@ function StatsPanel({ match }: { match: Match }) {
       <button onClick={toggle} className="mt-1 w-full rounded-lg bg-emerald-50 px-3 py-2 text-left text-sm font-black text-pitch">
         Datos para decidir
       </button>
-      {open && <div className="mt-3 rounded-lg border border-emerald-100 bg-slate-50 p-3">
+      {open && <div className="mt-3">
         {!stats || (!stats.home && !stats.away && !stats.head_to_head) ? <p className="text-sm leading-6 text-slate-500">Datos oficiales validados pendientes de cargar.</p> : <>
-          <div className="grid grid-cols-2 gap-3">
-            <TeamStatsBlock title={match.home_name} stats={stats.home} />
-            <TeamStatsBlock title={match.away_name} stats={stats.away} />
+          <div className="divide-y divide-emerald-100 overflow-hidden rounded-lg border border-emerald-100 bg-white">
+            <TeamStatsBlock title={match.home_name} flag={match.home_flag} stats={stats.home} />
+            <TeamStatsBlock title={match.away_name} flag={match.away_flag} stats={stats.away} />
           </div>
-          {stats.head_to_head && <div className="mt-3 rounded-md bg-white p-3 text-sm">
+          {stats.head_to_head && <div className="mt-3 rounded-lg border border-slate-100 bg-white p-3 text-sm">
             <b>Último enfrentamiento</b>
             <div className="mt-1 text-slate-600">{stats.head_to_head.last_match_date || 'Fecha pendiente'} · {stats.head_to_head.last_match_score || 'Marcador pendiente'}</div>
             {stats.head_to_head.competition && <div className="text-xs font-bold text-slate-400">{stats.head_to_head.competition}</div>}
@@ -437,48 +438,91 @@ function StatsPanel({ match }: { match: Match }) {
   );
 }
 
-function TeamStatsBlock({ title, stats }: { title: string; stats: TeamStats }) {
+function TeamStatsBlock({ title, flag, stats }: { title: string; flag: string; stats: TeamStats }) {
   const [squadOpen, setSquadOpen] = useState(false);
   const form = stats?.form_json || [];
   const hasWorldCupStats = stats?.world_cup_appearances !== null && stats?.world_cup_appearances !== undefined;
   const squad = stats?.squad_json;
   return (
-    <div className="rounded-md bg-white p-3 text-sm">
-      <h3 className="text-sm font-black text-slate-950">{title}</h3>
-      <div className="mt-2 text-xs font-bold text-slate-500">Ranking FIFA: {stats?.fifa_rank ? `#${stats.fifa_rank}` : '-'}</div>
-      {stats?.first_world_cup && <div className="mt-1 text-xs font-bold text-slate-500">Primer Mundial: <span className="text-slate-700">{stats.first_world_cup}</span></div>}
-      {stats?.coach && <div className="mt-1 text-xs font-bold text-slate-500">DT: <span className="text-slate-700">{stats.coach}</span></div>}
-      <div className="mt-2 rounded-md bg-slate-50 p-2">
-        <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">Mundiales</div>
-        {hasWorldCupStats ? <>
-          <div className="mt-1 font-black text-slate-900">{stats!.world_cup_appearances} participaciones</div>
-          {stats!.best_world_cup_result ? <div className="mt-1 text-xs font-bold text-slate-600">{stats!.best_world_cup_result}</div> : <>
-            <div className="mt-1 text-xs font-bold text-slate-500">{stats!.world_cup_wins ?? 0}V · {stats!.world_cup_draws ?? 0}E · {stats!.world_cup_losses ?? 0}D</div>
-            <div className="text-xs font-bold text-slate-500">Goles {stats!.world_cup_goals_for ?? '-'} / {stats!.world_cup_goals_against ?? '-'}</div>
-          </>}
-        </> : <div className="mt-1 text-xs font-bold text-slate-400">Historial pendiente</div>}
+    <section className="p-3 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <img src={flagUrl(flag)} alt="" className="h-7 w-10 shrink-0 rounded-sm object-cover shadow-sm" />
+            <h3 className="truncate text-base font-black leading-5 text-slate-950">{title}</h3>
+          </div>
+          {stats?.coach && <div className="mt-1 truncate text-xs font-bold text-slate-500">DT {stats.coach}</div>}
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">FIFA</div>
+          <div className="text-3xl font-black leading-8 text-pitch">{stats?.fifa_rank ? `#${stats.fifa_rank}` : '-'}</div>
+        </div>
       </div>
-      <div className="mt-2 text-xs font-bold text-slate-500">Jugadores a seguir</div>
-      <div className="mt-1 text-sm text-slate-700">{stats?.stars_json?.length ? stats.stars_json.join(', ') : 'Pendiente'}</div>
-      <div className="mt-2 flex gap-1">
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <StatCell label="Mundiales" value={hasWorldCupStats ? String(stats!.world_cup_appearances) : '-'} />
+        <StatCell label="Primer WC" value={stats?.first_world_cup ? String(stats.first_world_cup) : '-'} />
+        <StatCell label="Partidos" value={stats?.world_cup_played !== null && stats?.world_cup_played !== undefined ? String(stats.world_cup_played) : '-'} />
+      </div>
+
+      {hasWorldCupStats && (stats!.best_world_cup_result ? <div className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm font-black text-pitch">{stats!.best_world_cup_result}</div> : <>
+        <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-md border border-slate-100 text-center">
+          <RecordCell label="Victorias" value={stats!.world_cup_wins ?? 0} className="text-pitch" />
+          <RecordCell label="Empates" value={stats!.world_cup_draws ?? 0} className="text-triondaGold" />
+          <RecordCell label="Derrotas" value={stats!.world_cup_losses ?? 0} className="text-triondaRed" />
+        </div>
+        <div className="mt-2 flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-xs font-black text-slate-500">
+          <span>Goles a favor <b className="text-slate-950">{stats!.world_cup_goals_for ?? '-'}</b></span>
+          <span>En contra <b className="text-slate-950">{stats!.world_cup_goals_against ?? '-'}</b></span>
+        </div>
+      </>)}
+
+      <div className="mt-3">
+        <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">Jugadores a seguir</div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {stats?.stars_json?.length ? stats.stars_json.map((player) => <span key={player} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-700">{player}</span>) : <span className="text-sm font-bold text-slate-400">Pendiente</span>}
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="flex gap-1">
         {form.length ? form.map((r, index) => <span key={index} className={`h-3 w-3 rounded-full ${r === 'W' ? 'bg-pitch' : r === 'D' ? 'bg-triondaGold' : 'bg-triondaRed'}`} />) : <span className="text-sm text-slate-400">-</span>}
+        </div>
+        {squad && <button onClick={() => setSquadOpen(!squadOpen)} className="rounded-md bg-emerald-50 px-3 py-2 text-xs font-black text-pitch">
+          {squadOpen ? 'Ocultar plantel' : 'Ver plantel'}
+        </button>}
       </div>
-      {squad && <button onClick={() => setSquadOpen(!squadOpen)} className="mt-3 w-full rounded-md bg-emerald-50 px-2 py-2 text-xs font-black text-pitch">
-        {squadOpen ? 'Ocultar plantel' : 'Ver plantel'}
-      </button>}
-      {squadOpen && squad && <div className="mt-2 space-y-2 text-xs leading-5 text-slate-600">
+
+      {squadOpen && squad && <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-600">
         <SquadLine label="POR" players={squad.goalkeepers} />
         <SquadLine label="DEF" players={squad.defenders} />
         <SquadLine label="MED" players={squad.midfielders} />
         <SquadLine label="DEL" players={squad.forwards} />
       </div>}
-    </div>
+    </section>
   );
+}
+
+function StatCell({ label, value }: { label: string; value: string }) {
+  return <div>
+    <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{label}</div>
+    <div className="mt-0.5 text-2xl font-black leading-7 text-slate-950">{value}</div>
+  </div>;
+}
+
+function RecordCell({ label, value, className }: { label: string; value: number; className: string }) {
+  return <div className="border-l border-slate-100 px-1 py-2 first:border-l-0">
+    <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{label}</div>
+    <div className={`mt-0.5 text-2xl font-black leading-7 ${className}`}>{value}</div>
+  </div>;
 }
 
 function SquadLine({ label, players }: { label: string; players?: string[] }) {
   if (!players?.length) return null;
-  return <div><b className="text-slate-500">{label}:</b> {players.join(', ')}</div>;
+  return <div className="grid grid-cols-[34px_minmax(0,1fr)] gap-2">
+    <b className="text-slate-400">{label}</b>
+    <span>{players.join(', ')}</span>
+  </div>;
 }
 
 function TeamScore({ name, flag, value, locked, onMinus, onPlus }: { name: string; flag: string; value?: number; locked: boolean; onMinus: () => void; onPlus: () => void }) {

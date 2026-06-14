@@ -83,6 +83,7 @@ async function main() {
       fifa_rank SMALLINT NULL,
       first_world_cup SMALLINT NULL,
       world_cup_appearances SMALLINT NULL,
+      world_cup_played SMALLINT NULL,
       world_cup_wins SMALLINT NULL,
       world_cup_draws SMALLINT NULL,
       world_cup_losses SMALLINT NULL,

@@ -129,7 +129,7 @@ app.get('/api/matches/:matchId/stats', async (req, res) => {
 
   const { home, away } = rows[0];
   const teams = await query<any>(
-    `SELECT team_code, fifa_rank, first_world_cup, world_cup_appearances, world_cup_wins, world_cup_draws,
+    `SELECT team_code, fifa_rank, first_world_cup, world_cup_appearances, world_cup_played, world_cup_wins, world_cup_draws,
        world_cup_losses, world_cup_goals_for, world_cup_goals_against, best_world_cup_result,
        coach, stars_json, squad_json, form_json, source_name, source_url,
        DATE_FORMAT(verified_at, '%Y-%m-%dT%H:%i:%sZ') verified_at
