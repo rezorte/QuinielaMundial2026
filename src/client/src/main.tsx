@@ -423,10 +423,7 @@ function StatsPanel({ match }: { match: Match }) {
       </button>
       {open && <div className="mt-3">
         {!stats || (!stats.home && !stats.away && !stats.head_to_head) ? <p className="text-sm leading-6 text-slate-500">Datos oficiales validados pendientes de cargar.</p> : <>
-          <div className="divide-y divide-emerald-100 overflow-hidden rounded-lg border border-emerald-100 bg-white">
-            <TeamStatsBlock title={match.home_name} flag={match.home_flag} stats={stats.home} />
-            <TeamStatsBlock title={match.away_name} flag={match.away_flag} stats={stats.away} />
-          </div>
+          <StatsComparison match={match} home={stats.home} away={stats.away} />
           {stats.head_to_head && <div className="mt-3 rounded-lg border border-slate-100 bg-white p-3 text-sm">
             <b>Último enfrentamiento</b>
             <div className="mt-1 text-slate-600">{stats.head_to_head.last_match_date || 'Fecha pendiente'} · {stats.head_to_head.last_match_score || 'Marcador pendiente'}</div>
@@ -438,44 +435,67 @@ function StatsPanel({ match }: { match: Match }) {
   );
 }
 
-function TeamStatsBlock({ title, flag, stats }: { title: string; flag: string; stats: TeamStats }) {
+function StatsComparison({ match, home, away }: { match: Match; home: TeamStats; away: TeamStats }) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-emerald-100 bg-white">
+      <div className="grid grid-cols-[minmax(0,1fr)_82px_minmax(0,1fr)] items-end gap-2 border-b border-emerald-100 bg-emerald-50/60 px-3 py-3">
+        <TeamCompareHeader name={match.home_name} flag={match.home_flag} align="left" />
+        <div className="text-center text-[10px] font-black uppercase tracking-[0.12em] text-pitch">Comparativo</div>
+        <TeamCompareHeader name={match.away_name} flag={match.away_flag} align="right" />
+      </div>
+
+      <div className="divide-y divide-slate-100">
+        <CompareRow label="Ranking FIFA" left={rankValue(home)} right={rankValue(away)} large accent />
+        <CompareRow label="Mundiales" left={numberValue(home?.world_cup_appearances)} right={numberValue(away?.world_cup_appearances)} large />
+        <CompareRow label="Primer Mundial" left={numberValue(home?.first_world_cup)} right={numberValue(away?.first_world_cup)} />
+        <CompareRow label="Partidos" left={numberValue(home?.world_cup_played)} right={numberValue(away?.world_cup_played)} />
+        <CompareRow label="Victorias" left={numberValue(home?.world_cup_wins)} right={numberValue(away?.world_cup_wins)} leftClass="text-pitch" rightClass="text-pitch" />
+        <CompareRow label="Empates" left={numberValue(home?.world_cup_draws)} right={numberValue(away?.world_cup_draws)} leftClass="text-triondaGold" rightClass="text-triondaGold" />
+        <CompareRow label="Derrotas" left={numberValue(home?.world_cup_losses)} right={numberValue(away?.world_cup_losses)} leftClass="text-triondaRed" rightClass="text-triondaRed" />
+        <CompareRow label="Goles a favor" left={numberValue(home?.world_cup_goals_for)} right={numberValue(away?.world_cup_goals_for)} />
+        <CompareRow label="Goles contra" left={numberValue(home?.world_cup_goals_against)} right={numberValue(away?.world_cup_goals_against)} />
+      </div>
+
+      <div className="grid grid-cols-2 divide-x divide-emerald-100 border-t border-emerald-100">
+        <TeamDetailBlock title={match.home_name} stats={home} />
+        <TeamDetailBlock title={match.away_name} stats={away} />
+      </div>
+    </div>
+  );
+}
+
+function TeamCompareHeader({ name, flag, align }: { name: string; flag: string; align: 'left' | 'right' }) {
+  return <div className={`min-w-0 ${align === 'right' ? 'text-right' : ''}`}>
+    <img src={flagUrl(flag)} alt="" className={`h-7 w-10 rounded-sm object-cover shadow-sm ${align === 'right' ? 'ml-auto' : ''}`} />
+    <div className="mt-1 truncate text-sm font-black leading-5 text-slate-950">{name}</div>
+  </div>;
+}
+
+function CompareRow({ label, left, right, large = false, accent = false, leftClass = 'text-slate-950', rightClass = 'text-slate-950' }: { label: string; left: string; right: string; large?: boolean; accent?: boolean; leftClass?: string; rightClass?: string }) {
+  return <div className="grid grid-cols-[minmax(0,1fr)_82px_minmax(0,1fr)] items-center gap-2 px-3 py-2.5">
+    <div className={`text-left font-black ${large ? 'text-2xl leading-7' : 'text-lg leading-6'} ${accent ? 'text-pitch' : leftClass}`}>{left}</div>
+    <div className="text-center text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{label}</div>
+    <div className={`text-right font-black ${large ? 'text-2xl leading-7' : 'text-lg leading-6'} ${accent ? 'text-pitch' : rightClass}`}>{right}</div>
+  </div>;
+}
+
+function numberValue(value?: number | null) {
+  return value === null || value === undefined ? '-' : String(value);
+}
+
+function rankValue(stats: TeamStats) {
+  return stats?.fifa_rank ? `#${stats.fifa_rank}` : '-';
+}
+
+function TeamDetailBlock({ title, stats }: { title: string; stats: TeamStats }) {
   const [squadOpen, setSquadOpen] = useState(false);
   const form = stats?.form_json || [];
-  const hasWorldCupStats = stats?.world_cup_appearances !== null && stats?.world_cup_appearances !== undefined;
   const squad = stats?.squad_json;
   return (
-    <section className="p-3 text-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <img src={flagUrl(flag)} alt="" className="h-7 w-10 shrink-0 rounded-sm object-cover shadow-sm" />
-            <h3 className="truncate text-base font-black leading-5 text-slate-950">{title}</h3>
-          </div>
-          {stats?.coach && <div className="mt-1 truncate text-xs font-bold text-slate-500">DT {stats.coach}</div>}
-        </div>
-        <div className="shrink-0 text-right">
-          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">FIFA</div>
-          <div className="text-3xl font-black leading-8 text-pitch">{stats?.fifa_rank ? `#${stats.fifa_rank}` : '-'}</div>
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <StatCell label="Mundiales" value={hasWorldCupStats ? String(stats!.world_cup_appearances) : '-'} />
-        <StatCell label="Primer WC" value={stats?.first_world_cup ? String(stats.first_world_cup) : '-'} />
-        <StatCell label="Partidos" value={stats?.world_cup_played !== null && stats?.world_cup_played !== undefined ? String(stats.world_cup_played) : '-'} />
-      </div>
-
-      {hasWorldCupStats && (stats!.best_world_cup_result ? <div className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm font-black text-pitch">{stats!.best_world_cup_result}</div> : <>
-        <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-md border border-slate-100 text-center">
-          <RecordCell label="Victorias" value={stats!.world_cup_wins ?? 0} className="text-pitch" />
-          <RecordCell label="Empates" value={stats!.world_cup_draws ?? 0} className="text-triondaGold" />
-          <RecordCell label="Derrotas" value={stats!.world_cup_losses ?? 0} className="text-triondaRed" />
-        </div>
-        <div className="mt-2 flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-xs font-black text-slate-500">
-          <span>Goles a favor <b className="text-slate-950">{stats!.world_cup_goals_for ?? '-'}</b></span>
-          <span>En contra <b className="text-slate-950">{stats!.world_cup_goals_against ?? '-'}</b></span>
-        </div>
-      </>)}
+    <section className="min-w-0 p-3 text-sm">
+      <h3 className="truncate text-sm font-black text-slate-950">{title}</h3>
+      {stats?.coach && <div className="mt-1 text-xs font-bold leading-5 text-slate-500">DT {stats.coach}</div>}
+      {stats?.best_world_cup_result && <div className="mt-2 rounded-md bg-emerald-50 px-2 py-1.5 text-xs font-black leading-5 text-pitch">{stats.best_world_cup_result}</div>}
 
       <div className="mt-3">
         <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">Jugadores a seguir</div>
@@ -501,20 +521,6 @@ function TeamStatsBlock({ title, flag, stats }: { title: string; flag: string; s
       </div>}
     </section>
   );
-}
-
-function StatCell({ label, value }: { label: string; value: string }) {
-  return <div>
-    <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{label}</div>
-    <div className="mt-0.5 text-2xl font-black leading-7 text-slate-950">{value}</div>
-  </div>;
-}
-
-function RecordCell({ label, value, className }: { label: string; value: number; className: string }) {
-  return <div className="border-l border-slate-100 px-1 py-2 first:border-l-0">
-    <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{label}</div>
-    <div className={`mt-0.5 text-2xl font-black leading-7 ${className}`}>{value}</div>
-  </div>;
 }
 
 function SquadLine({ label, players }: { label: string; players?: string[] }) {
