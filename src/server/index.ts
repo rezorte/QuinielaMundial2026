@@ -22,6 +22,11 @@ const pickSchema = z.object({
   home_goals: goalSchema,
   away_goals: goalSchema
 });
+const resultSchema = z.object({
+  match_id: z.string().min(3).max(24),
+  home_goals: goalSchema.nullable(),
+  away_goals: goalSchema.nullable()
+});
 
 function lockedExpr() {
   return 'UTC_TIMESTAMP() >= m.kickoff_utc';
@@ -244,7 +249,7 @@ app.put('/api/admin/picks/:playerId', requireAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/result', requireAdmin, async (req, res) => {
-  const parsed = pickSchema.safeParse(req.body);
+  const parsed = resultSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_RESULT', issues: parsed.error.issues });
   await pool.execute(
     `UPDATE matches SET home_goals = :home_goals, away_goals = :away_goals WHERE id = :match_id`,

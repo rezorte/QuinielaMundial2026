@@ -19,6 +19,7 @@ type Match = {
   away_flag: string;
 };
 type Pick = { match_id: string; home_goals: number; away_goals: number };
+type ResultDraft = { match_id: string; home_goals: number | null; away_goals: number | null };
 type Player = { id: string; alias: string; display_name?: string; birth_year?: string };
 type Standing = { rank: number; player_id: string; alias: string; points: number; exacts: number; results: number };
 type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number };
@@ -382,9 +383,16 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     }
   }
   async function saveResult(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
-    const current = { match_id: match.id, home_goals: match.home_goals ?? 0, away_goals: match.away_goals ?? 0 };
-    const next = { ...current, [side]: Math.max(0, current[side] + delta) };
+    const current: ResultDraft = { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
+    const currentValue = current[side];
+    const nextValue = currentValue === null ? 0 : Math.max(0, currentValue + delta);
+    const next = { ...current, [side]: nextValue };
     await admin('/api/admin/result', { method: 'POST', body: JSON.stringify(next) });
+    await reload();
+  }
+
+  async function clearResult(match: Match) {
+    await admin('/api/admin/result', { method: 'POST', body: JSON.stringify({ match_id: match.id, home_goals: null, away_goals: null }) });
     await reload();
   }
 
@@ -446,7 +454,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
         {matches.map((match) => <MatchCard key={match.id} match={match} pick={draft[match.id]} setScore={changeDraft} forceOpen />)}
       </div> : <div className="mt-3 space-y-3">
         {matches.map((match) => {
-          const p = { match_id: match.id, home_goals: match.home_goals ?? 0, away_goals: match.away_goals ?? 0 };
+          const p: ResultDraft = { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
           return <article key={match.id} className="rounded-lg border border-emerald-200 bg-white p-3 shadow-sm">
             <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Grupo {match.grp} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</div>
             <div className="grid grid-cols-2 gap-3">
@@ -461,13 +469,14 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
             </div>
             <div className="mt-3 grid grid-cols-[40px_32px_40px_24px_40px_32px_40px] items-center justify-center gap-1">
               <button className="mini-btn !h-10 !w-10" onClick={() => saveResult(match, 'home_goals', -1)}>-</button>
-              <b className="text-center text-lg">{p.home_goals}</b>
+              <b className="text-center text-lg">{p.home_goals ?? '-'}</b>
               <button className="mini-btn filled !h-10 !w-10" onClick={() => saveResult(match, 'home_goals', 1)}>+</button>
               <span className="text-center font-black text-slate-300">-</span>
               <button className="mini-btn !h-10 !w-10" onClick={() => saveResult(match, 'away_goals', -1)}>-</button>
-              <b className="text-center text-lg">{p.away_goals}</b>
+              <b className="text-center text-lg">{p.away_goals ?? '-'}</b>
               <button className="mini-btn filled !h-10 !w-10" onClick={() => saveResult(match, 'away_goals', 1)}>+</button>
             </div>
+            {(p.home_goals !== null || p.away_goals !== null) && <button onClick={() => clearResult(match)} className="mx-auto mt-3 block rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">Limpiar resultado</button>}
           </article>;
         })}
       </div>}
