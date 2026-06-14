@@ -397,14 +397,24 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
           const p = { match_id: match.id, home_goals: match.home_goals ?? 0, away_goals: match.away_goals ?? 0 };
           return <article key={match.id} className="rounded-lg border border-emerald-200 bg-white p-3 shadow-sm">
             <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Grupo {match.grp} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</div>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <div className="flex items-center gap-2 text-sm font-black"><img src={flagUrl(match.home_flag)} alt="" className="h-7 w-9 object-contain" />{match.home_name}</div>
-              <div className="grid grid-cols-[38px_28px_38px_20px_38px_28px_38px] items-center gap-1">
-                <button className="mini-btn !h-9 !w-9" onClick={() => saveResult(match, 'home_goals', -1)}>-</button><b className="text-center">{p.home_goals}</b><button className="mini-btn filled !h-9 !w-9" onClick={() => saveResult(match, 'home_goals', 1)}>+</button>
-                <span className="text-center font-black text-slate-300">-</span>
-                <button className="mini-btn !h-9 !w-9" onClick={() => saveResult(match, 'away_goals', -1)}>-</button><b className="text-center">{p.away_goals}</b><button className="mini-btn filled !h-9 !w-9" onClick={() => saveResult(match, 'away_goals', 1)}>+</button>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="min-w-0 text-center">
+                <img src={flagUrl(match.home_flag)} alt="" className="mx-auto h-8 w-12 object-contain" />
+                <div className="mt-1 min-h-10 text-sm font-black leading-5 text-slate-950">{match.home_name}</div>
               </div>
-              <div className="flex items-center justify-end gap-2 text-right text-sm font-black">{match.away_name}<img src={flagUrl(match.away_flag)} alt="" className="h-7 w-9 object-contain" /></div>
+              <div className="min-w-0 text-center">
+                <img src={flagUrl(match.away_flag)} alt="" className="mx-auto h-8 w-12 object-contain" />
+                <div className="mt-1 min-h-10 text-sm font-black leading-5 text-slate-950">{match.away_name}</div>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-[40px_32px_40px_24px_40px_32px_40px] items-center justify-center gap-1">
+              <button className="mini-btn !h-10 !w-10" onClick={() => saveResult(match, 'home_goals', -1)}>-</button>
+              <b className="text-center text-lg">{p.home_goals}</b>
+              <button className="mini-btn filled !h-10 !w-10" onClick={() => saveResult(match, 'home_goals', 1)}>+</button>
+              <span className="text-center font-black text-slate-300">-</span>
+              <button className="mini-btn !h-10 !w-10" onClick={() => saveResult(match, 'away_goals', -1)}>-</button>
+              <b className="text-center text-lg">{p.away_goals}</b>
+              <button className="mini-btn filled !h-10 !w-10" onClick={() => saveResult(match, 'away_goals', 1)}>+</button>
             </div>
           </article>;
         })}
