@@ -23,7 +23,7 @@ type ResultDraft = { match_id: string; home_goals: number | null; away_goals: nu
 type Player = { id: string; alias: string; display_name?: string; birth_year?: string };
 type Standing = { rank: number; player_id: string; alias: string; points: number; exacts: number; results: number };
 type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number };
-type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean };
+type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean; show_match_picks: boolean };
 type TeamStats = {
   team_code: string;
   fifa_rank: number | null;
@@ -180,7 +180,7 @@ function App() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [picks, setPicks] = useState<Record<string, Pick>>({});
   const [standings, setStandings] = useState<Standing[]>([]);
-  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true });
+  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true, show_match_picks: false });
   const [aliasOpen, setAliasOpen] = useState(false);
   const [aliasDraft, setAliasDraft] = useState(player?.alias || '');
 
@@ -226,7 +226,7 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50 px-5 pb-24">
       <Brand player={player} onEditAlias={() => { setAliasDraft(player.alias); setAliasOpen(true); }} onSwitchUser={switchUser} />
-      {tab === 'fill' && <FillView matches={matches} picks={picks} setPicks={setPicks} showStats={settings.show_team_stats} />}
+      {tab === 'fill' && <FillView matches={matches} picks={picks} setPicks={setPicks} showStats={settings.show_team_stats} showMatchPicks={settings.show_match_picks} />}
       {tab === 'table' && <TableView standings={standings} matches={matches} />}
       {tab === 'admin' && <AdminView matches={matches} reload={load} />}
       {aliasOpen && <div className="fixed inset-0 z-40 flex items-end bg-slate-950/30 p-4">
@@ -267,7 +267,7 @@ function defaultDayIndex(days: string[]) {
   return next >= 0 ? next : days.length - 1;
 }
 
-function FillView({ matches, picks, setPicks, showStats }: { matches: Match[]; picks: Record<string, Pick>; setPicks: (p: Record<string, Pick>) => void; showStats: boolean }) {
+function FillView({ matches, picks, setPicks, showStats, showMatchPicks }: { matches: Match[]; picks: Record<string, Pick>; setPicks: (p: Record<string, Pick>) => void; showStats: boolean; showMatchPicks: boolean }) {
   const days = Array.from(new Set(matches.map((m) => localDateKey(m.kickoff_utc))));
   const [index, setIndex] = useState(0);
   const dayMatches = matches.filter((m) => localDateKey(m.kickoff_utc) === days[index]);
@@ -306,7 +306,7 @@ function FillView({ matches, picks, setPicks, showStats }: { matches: Match[]; p
         <button className="icon-btn" disabled={index === days.length - 1} onClick={() => setIndex(index + 1)}><ChevronRight /></button>
       </div>
       <div className="space-y-4">
-        {dayMatches.map((match) => <MatchCard key={match.id} match={match} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} showStats={showStats} />)}
+        {dayMatches.map((match) => <MatchCard key={match.id} match={match} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} showStats={showStats} showMatchPicks={showMatchPicks} />)}
       </div>
       <div className={`fixed bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full px-4 py-2 text-xs font-black shadow-sm transition-all ${isSaving ? 'bg-pitch text-white opacity-100' : savedPulse ? 'bg-emerald-50 text-pitch opacity-100' : 'pointer-events-none opacity-0'}`}>
         {isSaving ? 'Guardando...' : 'Guardado'}
@@ -315,7 +315,7 @@ function FillView({ matches, picks, setPicks, showStats }: { matches: Match[]; p
   );
 }
 
-function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, showStats = false }: { match: Match; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean; saving?: boolean; showStats?: boolean }) {
+function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, showStats = false, showMatchPicks = false }: { match: Match; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean; saving?: boolean; showStats?: boolean; showMatchPicks?: boolean }) {
   const locked = Boolean(match.locked) && !forceOpen;
   return (
     <article className="rounded-lg border border-emerald-200 bg-white shadow-sm">
@@ -327,7 +327,7 @@ function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, s
         <TeamScore name={match.home_name} flag={match.home_flag} value={pick?.home_goals} locked={locked} onMinus={() => setScore(match, 'home_goals', -1)} onPlus={() => setScore(match, 'home_goals', 1)} />
         <TeamScore name={match.away_name} flag={match.away_flag} value={pick?.away_goals} locked={locked} onMinus={() => setScore(match, 'away_goals', -1)} onPlus={() => setScore(match, 'away_goals', 1)} />
       </div>
-      <MatchPicksPanel match={match} />
+      {showMatchPicks && <MatchPicksPanel match={match} />}
       {showStats && <StatsPanel match={match} />}
     </article>
   );
@@ -514,7 +514,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   const [name, setName] = useState('');
   const [year, setYear] = useState('');
   const [mode, setMode] = useState<'picks' | 'results' | 'settings'>('picks');
-  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true });
+  const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true, show_match_picks: false });
 
   async function admin<T>(url: string, options: RequestInit = {}) {
     return api.request<T>(url, { ...options, headers: { ...(options.headers || {}), 'x-admin-pin': pin } });
@@ -646,6 +646,15 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
           </div>
           <button onClick={() => updateSetting('show_team_stats', !settings.show_team_stats)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.show_team_stats ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
             {settings.show_team_stats ? 'Sí' : 'No'}
+          </button>
+        </div>
+        <div className="mt-4 border-t border-slate-100 pt-4 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-black text-slate-950">Mostrar picks en partidos</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-500">Controla si aparece el panel “Picks familiares” dentro de cada partido.</p>
+          </div>
+          <button onClick={() => updateSetting('show_match_picks', !settings.show_match_picks)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.show_match_picks ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
+            {settings.show_match_picks ? 'Sí' : 'No'}
           </button>
         </div>
         <div className="mt-4 border-t border-slate-100 pt-4">
