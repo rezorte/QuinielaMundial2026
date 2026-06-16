@@ -152,7 +152,7 @@ function Login({ onDone }: { onDone: () => void }) {
   return (
     <main className="min-h-screen bg-white px-5 py-8">
       <Brand />
-      <form onSubmit={submit} className="mx-auto mt-8 max-w-xl rounded-lg bg-white p-6 shadow-lg shadow-slate-200/70 ring-1 ring-slate-100">
+      <form onSubmit={submit} className="mx-auto mt-8 max-w-xl rounded-lg bg-white p-6 border border-slate-200 shadow-md shadow-slate-200/60">
         <div className="text-center">
           <div className="text-5xl">⚽</div>
           <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950">Entra a la quiniela</h1>
@@ -163,7 +163,7 @@ function Login({ onDone }: { onDone: () => void }) {
         <label className="mt-5 block text-sm font-bold text-slate-950">Año de nacimiento</label>
         <input className="input" value={anio} onChange={(e) => setAnio(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="Ej. 1985" required />
         {error && <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm font-bold text-triondaRed">{error}</div>}
-        <button className="mt-7 h-14 w-full rounded-lg bg-slate-950 text-lg font-black text-white disabled:bg-slate-300" disabled={busy || nombre.length < 2 || anio.length !== 4}>
+        <button className="mt-7 h-14 w-full rounded-lg bg-pitch text-lg font-black text-white disabled:bg-slate-300" disabled={busy || nombre.length < 2 || anio.length !== 4}>
           Entrar
         </button>
       </form>
@@ -173,22 +173,22 @@ function Login({ onDone }: { onDone: () => void }) {
 
 function Brand({ player, onEditAlias, onSwitchUser }: { player?: Player | null; onEditAlias?: () => void; onSwitchUser?: () => void }) {
   return (
-    <header className="sticky top-0 z-20 -mx-5 bg-white/95 px-5 pb-3 pt-4 backdrop-blur">
+    <header className="sticky top-0 z-20 -mx-5 bg-white/95 px-5 pb-2 pt-3 backdrop-blur">
       <div className="mx-auto flex max-w-4xl items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="text-4xl leading-none">⚽</div>
+        <div className="flex items-center gap-2.5">
+          <div className="text-3xl leading-none">⚽</div>
           <div>
-            <div className="text-2xl font-black leading-6 text-slate-950">Mundial 2026</div>
-            <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Quiniela Familiar</div>
+            <div className="text-xl font-black leading-5 text-slate-950">Mundial 2026</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Quiniela Familiar</div>
           </div>
         </div>
         {player && <div className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-sm font-black text-slate-950">
           <button onClick={onEditAlias} className="px-2 py-1">{player.alias}</button>
-          <button onClick={onEditAlias} className="rounded-full p-1 text-slate-700" aria-label="Editar alias"><Pencil size={15} /></button>
+          <button onClick={onEditAlias} className="rounded-full p-1 text-pitch" aria-label="Editar alias"><Pencil size={15} /></button>
           <button onClick={onSwitchUser} className="rounded-full p-1 text-slate-500" aria-label="Cambiar usuario"><LogOut size={15} /></button>
         </div>}
       </div>
-      <div className="mx-auto mt-3 grid h-1 max-w-4xl grid-cols-[1fr_1fr_1fr] overflow-hidden rounded-full">
+      <div className="mx-auto mt-2 grid h-1 max-w-4xl grid-cols-[1fr_1fr_1fr] overflow-hidden rounded-full">
         <div className="bg-triondaBlue" />
         <div className="bg-pitch" />
         <div className="bg-triondaRed" />
@@ -252,13 +252,13 @@ function App() {
       {tab === 'fill' && <FillView matches={matches} picks={picks} setPicks={setPicks} showStats={settings.show_team_stats} showMatchPicks={settings.show_match_picks} showPickScores={settings.show_pick_scores} />}
       {tab === 'table' && <TableView standings={standings} matches={matches} />}
       {tab === 'admin' && <AdminView matches={matches} reload={load} />}
-      {aliasOpen && <div className="fixed inset-0 z-40 flex items-end bg-slate-950/30 p-4">
+      {aliasOpen && <div className="fixed inset-0 z-40 flex items-end bg-pitch/30 p-4">
         <div className="mx-auto w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
           <h2 className="text-lg font-black">Cambiar nombre</h2>
           <input className="input" value={aliasDraft} onChange={(e) => setAliasDraft(e.target.value)} placeholder="Tu nombre" />
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button onClick={() => setAliasOpen(false)} className="h-12 rounded-lg bg-slate-100 font-black text-slate-600">Cancelar</button>
-            <button onClick={saveName} className="h-12 rounded-lg bg-slate-950 font-black text-white">Guardar</button>
+            <button onClick={saveName} className="h-12 rounded-lg bg-pitch font-black text-white">Guardar</button>
           </div>
         </div>
       </div>}
@@ -324,14 +324,14 @@ function FillView({ matches, picks, setPicks, showStats, showMatchPicks, showPic
         <div className="min-w-0 px-3 text-center">
           <h2 className="text-xl font-black capitalize leading-6 text-slate-950 sm:text-3xl">{days[index] ? localWeekday(dayMatches[0].kickoff_utc) : ''}</h2>
           <div className="text-base font-black capitalize leading-5 text-slate-500 sm:text-xl">{days[index] ? localDateLabel(dayMatches[0].kickoff_utc) : ''}</div>
-          <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-700">Jornada {dayMatches[0]?.jornada} · {dayMatches.length} partidos</p>
+          <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-pitch">Jornada {dayMatches[0]?.jornada} · {dayMatches.length} partidos</p>
         </div>
         <button className="icon-btn" disabled={index === days.length - 1} onClick={() => setIndex(index + 1)}><ChevronRight /></button>
       </div>
       <div className="space-y-4">
         {dayMatches.map((match) => <MatchCard key={match.id} match={match} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} showStats={showStats} showMatchPicks={showMatchPicks} showPickScores={showPickScores} />)}
       </div>
-      <div className={`fixed bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full px-4 py-2 text-xs font-black shadow-sm transition-all ${isSaving ? 'bg-slate-950 text-white opacity-100' : savedPulse ? 'bg-slate-100 text-slate-700 opacity-100' : 'pointer-events-none opacity-0'}`}>
+      <div className={`fixed bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full px-4 py-2 text-xs font-black shadow-sm transition-all ${isSaving ? 'bg-pitch text-white opacity-100' : savedPulse ? 'bg-slate-100 text-pitch opacity-100' : 'pointer-events-none opacity-0'}`}>
         {isSaving ? 'Guardando...' : 'Guardado'}
       </div>
     </main>
@@ -342,10 +342,10 @@ function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, s
   const locked = Boolean(match.locked) && !forceOpen;
   const points = pickPoints(pick, match);
   return (
-    <article className="rounded-lg bg-white shadow-lg shadow-slate-200/70 ring-1 ring-slate-100">
+    <article className="rounded-lg bg-white border border-slate-200 shadow-md shadow-slate-200/60">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
         <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Grupo {match.grp} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</span>
-        {saving ? <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-black text-slate-700">Guardando</span> : locked ? <span className="flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-black text-triondaRed"><Lock size={14} /> Cerrado</span> : null}
+        {saving ? <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-black text-pitch">Guardando</span> : locked ? <span className="flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-black text-triondaRed"><Lock size={14} /> Cerrado</span> : null}
       </div>
       <div className="grid grid-cols-2 gap-3 p-4">
         <TeamScore name={match.home_name} flag={match.home_flag} value={pick?.home_goals} locked={locked} onMinus={() => setScore(match, 'home_goals', -1)} onPlus={() => setScore(match, 'home_goals', 1)} />
@@ -396,7 +396,7 @@ function MatchPicksPanel({ match }: { match: Match }) {
         {picks.map((row) => <div key={row.player_id} className="grid grid-cols-[minmax(0,1fr)_70px_52px] items-center gap-2 border-t border-slate-100 px-3 py-2 first:border-t-0">
           <b className="truncate text-sm">{row.alias}</b>
           <span className="text-right text-sm font-black">{row.home_goals} - {row.away_goals}</span>
-          <span className="rounded-full bg-slate-100 px-2 py-1 text-center text-xs font-black text-slate-700">{row.points}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-1 text-center text-xs font-black text-pitch">{row.points}</span>
         </div>)}
       </div>}
     </div>
@@ -418,7 +418,7 @@ function StatsPanel({ match }: { match: Match }) {
 
   return (
     <div className="border-t border-slate-100 px-4 pb-4">
-      <button onClick={toggle} className="mt-1 w-full rounded-lg bg-slate-100 px-3 py-2 text-left text-sm font-black text-slate-700">
+      <button onClick={toggle} className="mt-1 w-full rounded-lg bg-slate-100 px-3 py-2 text-left text-sm font-black text-pitch">
         Datos para decidir
       </button>
       {open && <div className="mt-3">
@@ -440,7 +440,7 @@ function StatsComparison({ match, home, away }: { match: Match; home: TeamStats;
     <div className="overflow-hidden rounded-lg border border-slate-100 bg-white">
       <div className="grid grid-cols-[minmax(0,1fr)_82px_minmax(0,1fr)] items-end gap-2 border-b border-slate-100 bg-slate-50 px-3 py-3">
         <TeamCompareHeader name={match.home_name} flag={match.home_flag} align="left" />
-        <div className="text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-700">Comparativo</div>
+        <div className="text-center text-[10px] font-black uppercase tracking-[0.12em] text-pitch">Comparativo</div>
         <TeamCompareHeader name={match.away_name} flag={match.away_flag} align="right" />
       </div>
 
@@ -449,7 +449,7 @@ function StatsComparison({ match, home, away }: { match: Match; home: TeamStats;
         <CompareRow label="Mundiales" left={numberValue(home?.world_cup_appearances)} right={numberValue(away?.world_cup_appearances)} large />
         <CompareRow label="Primer Mundial" left={numberValue(home?.first_world_cup)} right={numberValue(away?.first_world_cup)} />
         <CompareRow label="Partidos" left={numberValue(home?.world_cup_played)} right={numberValue(away?.world_cup_played)} />
-        <CompareRow label="Victorias" left={numberValue(home?.world_cup_wins)} right={numberValue(away?.world_cup_wins)} leftClass="text-slate-700" rightClass="text-slate-700" />
+        <CompareRow label="Victorias" left={numberValue(home?.world_cup_wins)} right={numberValue(away?.world_cup_wins)} leftClass="text-pitch" rightClass="text-pitch" />
         <CompareRow label="Empates" left={numberValue(home?.world_cup_draws)} right={numberValue(away?.world_cup_draws)} leftClass="text-triondaGold" rightClass="text-triondaGold" />
         <CompareRow label="Derrotas" left={numberValue(home?.world_cup_losses)} right={numberValue(away?.world_cup_losses)} leftClass="text-triondaRed" rightClass="text-triondaRed" />
         <CompareRow label="Goles a favor" left={numberValue(home?.world_cup_goals_for)} right={numberValue(away?.world_cup_goals_for)} />
@@ -473,9 +473,9 @@ function TeamCompareHeader({ name, flag, align }: { name: string; flag: string; 
 
 function CompareRow({ label, left, right, large = false, accent = false, leftClass = 'text-slate-950', rightClass = 'text-slate-950' }: { label: string; left: string; right: string; large?: boolean; accent?: boolean; leftClass?: string; rightClass?: string }) {
   return <div className="grid grid-cols-[minmax(0,1fr)_82px_minmax(0,1fr)] items-center gap-2 px-3 py-2.5">
-    <div className={`text-left font-black ${large ? 'text-2xl leading-7' : 'text-lg leading-6'} ${accent ? 'text-slate-700' : leftClass}`}>{left}</div>
+    <div className={`text-left font-black ${large ? 'text-2xl leading-7' : 'text-lg leading-6'} ${accent ? 'text-pitch' : leftClass}`}>{left}</div>
     <div className="text-center text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{label}</div>
-    <div className={`text-right font-black ${large ? 'text-2xl leading-7' : 'text-lg leading-6'} ${accent ? 'text-slate-700' : rightClass}`}>{right}</div>
+    <div className={`text-right font-black ${large ? 'text-2xl leading-7' : 'text-lg leading-6'} ${accent ? 'text-pitch' : rightClass}`}>{right}</div>
   </div>;
 }
 
@@ -495,12 +495,12 @@ function TeamDetailBlock({ title, stats }: { title: string; stats: TeamStats }) 
     <section className="min-w-0 p-3 text-sm">
       <h3 className="truncate text-sm font-black text-slate-950">{title}</h3>
       {stats?.coach && <div className="mt-1 text-xs font-bold leading-5 text-slate-500">DT {stats.coach}</div>}
-      {stats?.best_world_cup_result && <div className="mt-2 rounded-md bg-slate-100 px-2 py-1.5 text-xs font-black leading-5 text-slate-700">{stats.best_world_cup_result}</div>}
+      {stats?.best_world_cup_result && <div className="mt-2 rounded-md bg-slate-100 px-2 py-1.5 text-xs font-black leading-5 text-pitch">{stats.best_world_cup_result}</div>}
 
       <div className="mt-3">
         <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">Jugadores a seguir</div>
         {stats?.stars_json?.length ? <ul className="mt-2 space-y-1.5">
-          {stats.stars_json.map((player) => <li key={player} className="rounded-md bg-slate-50 px-2.5 py-1.5 text-sm font-black leading-5 text-slate-700">{player}</li>)}
+          {stats.stars_json.map((player) => <li key={player} className="rounded-md bg-slate-50 px-2.5 py-1.5 text-sm font-black leading-5 text-pitch">{player}</li>)}
         </ul> : <div className="mt-2 text-sm font-bold text-slate-400">Pendiente</div>}
       </div>
 
@@ -508,7 +508,7 @@ function TeamDetailBlock({ title, stats }: { title: string; stats: TeamStats }) 
         <div className="flex gap-1">
         {form.length ? form.map((r, index) => <span key={index} className={`h-3 w-3 rounded-full ${r === 'W' ? 'bg-pitch' : r === 'D' ? 'bg-triondaGold' : 'bg-triondaRed'}`} />) : <span className="text-sm text-slate-400">-</span>}
         </div>
-        {squad && <button onClick={() => setSquadOpen(!squadOpen)} className="rounded-md bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">
+        {squad && <button onClick={() => setSquadOpen(!squadOpen)} className="rounded-md bg-slate-100 px-3 py-2 text-xs font-black text-pitch">
           {squadOpen ? 'Ocultar plantel' : 'Ver plantel'}
         </button>}
       </div>
@@ -528,7 +528,7 @@ function SquadLine({ label, players }: { label: string; players?: string[] }) {
   return <div>
     <b className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{label}</b>
     <ul className="mt-1 space-y-1">
-      {players.map((player) => <li key={player} className="leading-5 text-slate-700">{player}</li>)}
+      {players.map((player) => <li key={player} className="leading-5 text-pitch">{player}</li>)}
     </ul>
   </div>;
 }
@@ -550,7 +550,7 @@ function TeamScore({ name, flag, value, locked, onMinus, onPlus }: { name: strin
 function RankMovement({ delta }: { delta: number }) {
   if (!delta) return <span className="text-[11px] font-black text-slate-300">-</span>;
   const movedUp = delta > 0;
-  return <span className={`inline-flex items-center gap-0.5 text-[11px] font-black ${movedUp ? 'text-slate-700' : 'text-triondaRed'}`}>
+  return <span className={`inline-flex items-center gap-0.5 text-[11px] font-black ${movedUp ? 'text-pitch' : 'text-triondaRed'}`}>
     {movedUp ? <ArrowUp size={12} strokeWidth={3} /> : <ArrowDown size={12} strokeWidth={3} />}
     {Math.abs(delta)}
   </span>;
@@ -581,8 +581,8 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
   return (
     <main className="mx-auto max-w-4xl py-6">
       <div className="mb-6 grid grid-cols-2 rounded-lg bg-slate-100 p-1">
-        <button onClick={() => setView('ranking')} className={`h-11 rounded-md text-sm font-black ${view === 'ranking' ? 'bg-slate-950 text-white' : 'text-slate-500'}`}>Ranking</button>
-        <button onClick={() => setView('match')} className={`h-11 rounded-md text-sm font-black ${view === 'match' ? 'bg-slate-950 text-white' : 'text-slate-500'}`}>Por partido</button>
+        <button onClick={() => setView('ranking')} className={`h-11 rounded-md text-sm font-black ${view === 'ranking' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Ranking</button>
+        <button onClick={() => setView('match')} className={`h-11 rounded-md text-sm font-black ${view === 'match' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Por partido</button>
       </div>
 
       {view === 'ranking' && <>
@@ -595,12 +595,12 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
             <div className={`mt-2 flex ${heights[index]} items-start justify-center rounded-t-lg ${colors[index]} pt-3 text-2xl font-black text-white`}>
               {row ? row.points : 0}
             </div>
-            <div className="bg-slate-100 py-1 text-xs font-black text-slate-700">#{row?.rank || '-'}</div>
+            <div className="bg-slate-100 py-1 text-xs font-black text-pitch">#{row?.rank || '-'}</div>
           </div>;
         })}
       </div>}
-      <div className="overflow-hidden rounded-lg bg-white shadow-lg shadow-slate-200/70 ring-1 ring-slate-100">
-        <div className="grid grid-cols-[34px_minmax(0,1fr)_52px_48px_54px] gap-2 bg-slate-950 px-3 py-3 text-xs font-black text-white sm:text-sm">
+      <div className="overflow-hidden rounded-lg bg-white border border-slate-200 shadow-md shadow-slate-200/60">
+        <div className="grid grid-cols-[34px_minmax(0,1fr)_52px_48px_54px] gap-2 bg-pitch px-3 py-3 text-xs font-black text-white sm:text-sm">
           <span>#</span><span>Jugador</span><span className="text-right">Pts</span><span className="text-right">Res.</span><span className="text-right">Exact.</span>
         </div>
         {standings.map((row) => <div key={row.player_id} className="grid grid-cols-[34px_minmax(0,1fr)_52px_48px_54px] gap-2 border-t border-slate-100 px-3 py-4 text-sm sm:text-base">
@@ -609,7 +609,7 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
             <RankMovement delta={row.rank_delta} />
           </div>
           <b className="truncate">{row.alias}</b>
-          <b className="text-right text-slate-700">{row.points}</b>
+          <b className="text-right text-pitch">{row.points}</b>
           <span className="text-right">{row.results}</span>
           <span className="text-right">{row.exacts}</span>
         </div>)}
@@ -617,11 +617,11 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
       <p className="mt-5 text-center text-sm leading-6 text-slate-500">1 punto por resultado · 3 puntos por marcador exacto.</p>
       </>}
 
-      {view === 'match' && <section className="rounded-lg bg-white p-4 shadow-lg shadow-slate-200/70 ring-1 ring-slate-100">
+      {view === 'match' && <section className="rounded-lg bg-white p-4 border border-slate-200 shadow-md shadow-slate-200/60">
         <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center gap-2">
           <button className="icon-btn !h-12 !w-12" disabled={selectedIndex <= 0} onClick={() => moveMatch(-1)}><ChevronLeft /></button>
           <div className="relative min-w-0">
-            <button onClick={() => setMatchMenuOpen(!matchMenuOpen)} className="w-full rounded-xl bg-slate-50 px-3 py-3 text-slate-950 shadow-sm ring-1 ring-slate-100">
+            <button onClick={() => setMatchMenuOpen(!matchMenuOpen)} className="w-full rounded-xl bg-slate-50 px-3 py-3 text-slate-950 shadow-sm border border-slate-200">
               {selectedMatch ? <MatchNavContent match={selectedMatch} /> : <span className="text-sm font-black text-slate-400">Selecciona partido</span>}
             </button>
             {matchMenuOpen && <div className="absolute left-0 right-0 top-full z-20 mt-2 max-h-80 overflow-y-auto rounded-xl border border-slate-100 bg-white p-2 shadow-xl">
@@ -637,7 +637,7 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
           {matchPicks.map((pick) => <div key={pick.player_id} className="grid grid-cols-[minmax(0,1fr)_76px_58px] items-center gap-2 border-t border-slate-100 px-3 py-3 first:border-t-0">
             <b className="truncate">{pick.alias}</b>
             <span className="text-right text-lg font-black">{pick.home_goals} - {pick.away_goals}</span>
-            <span className="rounded-full bg-slate-100 px-2 py-1 text-center text-sm font-black text-slate-700">{pick.points} pts</span>
+            <span className="rounded-full bg-slate-100 px-2 py-1 text-center text-sm font-black text-pitch">{pick.points} pts</span>
           </div>)}
         </div>
       </section>}
@@ -648,21 +648,21 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
 function MatchNavContent({ match, compact = false }: { match: Match; compact?: boolean }) {
   const hasResult = match.home_goals !== null && match.away_goals !== null;
   return <div className="min-w-0 text-center">
-    <div className={`grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 ${compact ? 'text-sm' : 'text-base'}`}>
-      <div className="flex min-w-0 items-center justify-end gap-1.5">
-        <img src={flagUrl(match.home_flag)} className="h-4 w-6 shrink-0 rounded-sm object-cover shadow-sm" alt="" />
-        <b className="truncate">{match.home_name}</b>
+    <div className={`truncate font-black uppercase text-slate-400 ${compact ? 'text-[10px] tracking-[0.12em]' : 'text-[10px] tracking-[0.14em]'}`}>
+      Grupo {match.grp} · {localDateLabel(match.kickoff_utc)} · {localTime(match.kickoff_utc)}
+    </div>
+    <div className={`mt-2 grid min-w-0 grid-cols-[minmax(0,1fr)_54px_minmax(0,1fr)] items-center gap-2 ${compact ? 'text-sm' : 'text-[13px] min-[380px]:text-sm sm:text-base'}`}>
+      <div className="min-w-0 text-center">
+        <img src={flagUrl(match.home_flag)} className="mx-auto h-5 w-7 shrink-0 rounded-sm object-cover shadow-sm" alt="" />
+        <b className="mt-1 block truncate leading-4">{match.home_name}</b>
       </div>
-      <b className={`shrink-0 whitespace-nowrap ${hasResult ? 'text-slate-700' : 'text-slate-400'}`}>
+      <b className={`shrink-0 whitespace-nowrap text-center text-base leading-5 ${hasResult ? 'text-pitch' : 'text-slate-400'}`}>
         {hasResult ? `${match.home_goals} - ${match.away_goals}` : 'vs'}
       </b>
-      <div className="flex min-w-0 items-center gap-1.5">
-        <b className="truncate">{match.away_name}</b>
-        <img src={flagUrl(match.away_flag)} className="h-4 w-6 shrink-0 rounded-sm object-cover shadow-sm" alt="" />
+      <div className="min-w-0 text-center">
+        <img src={flagUrl(match.away_flag)} className="mx-auto h-5 w-7 shrink-0 rounded-sm object-cover shadow-sm" alt="" />
+        <b className="mt-1 block truncate leading-4">{match.away_name}</b>
       </div>
-    </div>
-    <div className={`mt-1 truncate font-black uppercase tracking-[0.14em] text-slate-400 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
-      Grupo {match.grp} · {localDateLabel(match.kickoff_utc)} · {localTime(match.kickoff_utc)}
     </div>
   </div>;
 }
@@ -765,12 +765,12 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   if (!adminReady) {
     return (
       <main className="mx-auto max-w-xl py-6">
-        <div className="rounded-lg bg-white p-5 shadow-lg shadow-slate-200/70 ring-1 ring-slate-100">
+        <div className="rounded-lg bg-white p-5 border border-slate-200 shadow-md shadow-slate-200/60">
           <h2 className="text-2xl font-black text-slate-950">Organizador</h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">Ingresa el PIN para capturar resultados y picks enviados por WhatsApp.</p>
           <label className="mt-5 block text-sm font-black">PIN</label>
           <input className="input" value={pin} onChange={(e) => setPin(e.target.value)} type="password" inputMode="numeric" autoComplete="off" />
-          <button onClick={loadPlayers} className="mt-4 h-12 w-full rounded-lg bg-slate-950 font-black text-white">Entrar</button>
+          <button onClick={loadPlayers} className="mt-4 h-12 w-full rounded-lg bg-pitch font-black text-white">Entrar</button>
         </div>
       </main>
     );
@@ -779,18 +779,18 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   return (
     <main className="mx-auto max-w-4xl py-5">
       <div className="mt-4 grid grid-cols-3 rounded-lg bg-slate-100 p-1">
-        <button onClick={() => setMode('picks')} className={`h-11 rounded-md text-sm font-black ${mode === 'picks' ? 'bg-slate-950 text-white' : 'text-slate-500'}`}>Jugadores</button>
-        <button onClick={() => setMode('results')} className={`h-11 rounded-md text-sm font-black ${mode === 'results' ? 'bg-slate-950 text-white' : 'text-slate-500'}`}>Resultados</button>
-        <button onClick={() => setMode('settings')} className={`h-11 rounded-md text-sm font-black ${mode === 'settings' ? 'bg-slate-950 text-white' : 'text-slate-500'}`}>Ajustes</button>
+        <button onClick={() => setMode('picks')} className={`h-11 rounded-md text-sm font-black ${mode === 'picks' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Jugadores</button>
+        <button onClick={() => setMode('results')} className={`h-11 rounded-md text-sm font-black ${mode === 'results' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Resultados</button>
+        <button onClick={() => setMode('settings')} className={`h-11 rounded-md text-sm font-black ${mode === 'settings' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Ajustes</button>
       </div>
-      {mode !== 'picks' && <h2 className="mt-6 text-lg font-black text-slate-700">{mode === 'results' ? 'Resultados oficiales' : 'Ajustes'}</h2>}
-      {mode === 'settings' ? <section className="mt-3 rounded-lg bg-white p-4 shadow-lg shadow-slate-200/70 ring-1 ring-slate-100">
+      {mode !== 'picks' && <h2 className="mt-6 text-lg font-black text-pitch">{mode === 'results' ? 'Resultados oficiales' : 'Ajustes'}</h2>}
+      {mode === 'settings' ? <section className="mt-3 rounded-lg bg-white p-4 border border-slate-200 shadow-md shadow-slate-200/60">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h3 className="text-base font-black text-slate-950">Permitir llenar partidos pasados</h3>
             <p className="mt-1 text-sm leading-6 text-slate-500">Úsalo para que cada quien capture lo que ya había mandado por WhatsApp. Al apagarlo, todo lo pasado vuelve a bloquearse.</p>
           </div>
-          <button onClick={() => updateSetting('late_picks_open', !settings.late_picks_open)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.late_picks_open ? 'bg-slate-950 text-white' : 'bg-slate-200 text-slate-500'}`}>
+          <button onClick={() => updateSetting('late_picks_open', !settings.late_picks_open)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.late_picks_open ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
             {settings.late_picks_open ? 'Sí' : 'No'}
           </button>
         </div>
@@ -799,7 +799,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
             <h3 className="text-base font-black text-slate-950">Permitir nuevos usuarios</h3>
             <p className="mt-1 text-sm leading-6 text-slate-500">Si lo apagas, solo podrán entrar jugadores ya registrados con su año correcto.</p>
           </div>
-          <button onClick={() => updateSetting('registration_open', !settings.registration_open)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.registration_open ? 'bg-slate-950 text-white' : 'bg-slate-200 text-slate-500'}`}>
+          <button onClick={() => updateSetting('registration_open', !settings.registration_open)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.registration_open ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
             {settings.registration_open ? 'Sí' : 'No'}
           </button>
         </div>
@@ -808,7 +808,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
             <h3 className="text-base font-black text-slate-950">Mostrar estadísticas</h3>
             <p className="mt-1 text-sm leading-6 text-slate-500">Activa el panel “Datos para decidir”. Solo mostrará datos cuando estén cargados y validados.</p>
           </div>
-          <button onClick={() => updateSetting('show_team_stats', !settings.show_team_stats)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.show_team_stats ? 'bg-slate-950 text-white' : 'bg-slate-200 text-slate-500'}`}>
+          <button onClick={() => updateSetting('show_team_stats', !settings.show_team_stats)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.show_team_stats ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
             {settings.show_team_stats ? 'Sí' : 'No'}
           </button>
         </div>
@@ -817,7 +817,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
             <h3 className="text-base font-black text-slate-950">Mostrar picks en partidos</h3>
             <p className="mt-1 text-sm leading-6 text-slate-500">Controla si aparece el panel “Picks familiares” dentro de cada partido.</p>
           </div>
-          <button onClick={() => updateSetting('show_match_picks', !settings.show_match_picks)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.show_match_picks ? 'bg-slate-950 text-white' : 'bg-slate-200 text-slate-500'}`}>
+          <button onClick={() => updateSetting('show_match_picks', !settings.show_match_picks)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.show_match_picks ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
             {settings.show_match_picks ? 'Sí' : 'No'}
           </button>
         </div>
@@ -826,7 +826,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
             <h3 className="text-base font-black text-slate-950">Mostrar resultado y puntos</h3>
             <p className="mt-1 text-sm leading-6 text-slate-500">Cuando ya haya resultado oficial, muestra debajo de tu pick el marcador real y tus puntos.</p>
           </div>
-          <button onClick={() => updateSetting('show_pick_scores', !settings.show_pick_scores)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.show_pick_scores ? 'bg-slate-950 text-white' : 'bg-slate-200 text-slate-500'}`}>
+          <button onClick={() => updateSetting('show_pick_scores', !settings.show_pick_scores)} className={`h-10 min-w-16 rounded-full px-4 text-sm font-black ${settings.show_pick_scores ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
             {settings.show_pick_scores ? 'Sí' : 'No'}
           </button>
         </div>
@@ -846,24 +846,24 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
               </div>
               <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2">
                 <span className="text-sm font-black text-slate-600">Activo</span>
-                <button onClick={() => editPlayerLocal(player.id, 'active', !Boolean(player.active))} className={`h-9 min-w-14 rounded-full px-3 text-sm font-black ${Boolean(player.active) ? 'bg-slate-950 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                <button onClick={() => editPlayerLocal(player.id, 'active', !Boolean(player.active))} className={`h-9 min-w-14 rounded-full px-3 text-sm font-black ${Boolean(player.active) ? 'bg-pitch text-white' : 'bg-slate-200 text-slate-500'}`}>
                   {Boolean(player.active) ? 'Sí' : 'No'}
                 </button>
               </div>
-              <button onClick={() => updatePlayer(player)} className="mt-2 h-10 w-full rounded-lg bg-slate-950 text-sm font-black text-white">Guardar</button>
+              <button onClick={() => updatePlayer(player)} className="mt-2 h-10 w-full rounded-lg bg-pitch text-sm font-black text-white">Guardar</button>
             </div>)}
           </div>
         </div>
       </section> : mode === 'picks' ? <div className="mt-3 space-y-4">
-        <section className="rounded-lg bg-white p-4 shadow-lg shadow-slate-200/70 ring-1 ring-slate-100">
+        <section className="rounded-lg bg-white p-4 border border-slate-200 shadow-md shadow-slate-200/60">
           <h3 className="font-black">Agregar jugador</h3>
-          <div className="mt-3 grid grid-cols-[1fr_100px_48px] gap-2"><input className="input !mt-0" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" /><input className="input !mt-0" value={year} onChange={(e) => setYear(e.target.value)} placeholder="Año" /><button onClick={addPlayer} className="rounded-lg bg-slate-950 text-white"><UserPlus className="mx-auto" /></button></div>
+          <div className="mt-3 grid grid-cols-[1fr_100px_48px] gap-2"><input className="input !mt-0" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" /><input className="input !mt-0" value={year} onChange={(e) => setYear(e.target.value)} placeholder="Año" /><button onClick={addPlayer} className="rounded-lg bg-pitch text-white"><UserPlus className="mx-auto" /></button></div>
           <h3 className="mt-5 border-t border-slate-100 pt-4 font-black">Selecciona jugador</h3>
-          <div className="mt-3 flex flex-wrap gap-2">{players.filter((p) => Boolean(p.active)).map((p) => <button key={p.id} onClick={() => selectPlayer(p.id)} className={`rounded-full px-4 py-2 text-sm font-black ${selected === p.id ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-600'}`}>{p.alias}</button>)}</div>
+          <div className="mt-3 flex flex-wrap gap-2">{players.filter((p) => Boolean(p.active)).map((p) => <button key={p.id} onClick={() => selectPlayer(p.id)} className={`rounded-full px-4 py-2 text-sm font-black ${selected === p.id ? 'bg-pitch text-white' : 'bg-slate-100 text-slate-600'}`}>{p.alias}</button>)}</div>
         </section>
         {matches.map((match) => <MatchCard key={match.id} match={match} pick={draft[match.id]} setScore={changeDraft} forceOpen />)}
       </div> : <div className="mt-3 space-y-3">
-        <section className="rounded-lg bg-white p-4 shadow-lg shadow-slate-200/70 ring-1 ring-slate-100">
+        <section className="rounded-lg bg-white p-4 border border-slate-200 shadow-md shadow-slate-200/60">
           <label className="block text-sm font-black text-slate-950">Fecha</label>
           <select className="input" value={resultDate} onChange={(e) => setResultDate(e.target.value)}>
             {!resultDays.includes(resultDate) && <option value={resultDate}>{localDateLabel(`${resultDate}T12:00:00Z`)}</option>}
@@ -874,7 +874,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
         {resultMatches.length === 0 && <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm font-bold text-slate-400">No hay partidos en esta fecha.</div>}
         {resultMatches.map((match) => {
           const p: ResultDraft = { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
-          return <article key={match.id} className="rounded-lg bg-white p-3 shadow-lg shadow-slate-200/70 ring-1 ring-slate-100">
+          return <article key={match.id} className="rounded-lg bg-white p-3 border border-slate-200 shadow-md shadow-slate-200/60">
             <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Grupo {match.grp} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</div>
             <div className="grid grid-cols-2 gap-3">
               <div className="min-w-0 text-center">
