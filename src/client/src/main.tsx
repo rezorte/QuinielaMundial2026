@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ChevronLeft, ChevronRight, Lock, LogOut, Pencil, Settings, Trophy, UserPlus } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Lock, LogOut, Pencil, Settings, Trophy, UserPlus } from 'lucide-react';
 import './styles.css';
 
 type Match = {
@@ -21,7 +21,7 @@ type Match = {
 type Pick = { match_id: string; home_goals: number; away_goals: number };
 type ResultDraft = { match_id: string; home_goals: number | null; away_goals: number | null };
 type Player = { id: string; alias: string; display_name?: string; birth_year?: string; active?: boolean | 0 | 1 };
-type Standing = { rank: number; player_id: string; alias: string; points: number; exacts: number; results: number };
+type Standing = { rank: number; rank_delta: number; player_id: string; alias: string; points: number; exacts: number; results: number };
 type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number };
 type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean; show_match_picks: boolean; show_pick_scores: boolean };
 type TeamStats = {
@@ -547,7 +547,17 @@ function TeamScore({ name, flag, value, locked, onMinus, onPlus }: { name: strin
   );
 }
 
+function RankMovement({ delta }: { delta: number }) {
+  if (!delta) return <span className="text-[11px] font-black text-slate-300">-</span>;
+  const movedUp = delta > 0;
+  return <span className={`inline-flex items-center gap-0.5 text-[11px] font-black ${movedUp ? 'text-pitch' : 'text-triondaRed'}`}>
+    {movedUp ? <ArrowUp size={12} strokeWidth={3} /> : <ArrowDown size={12} strokeWidth={3} />}
+    {Math.abs(delta)}
+  </span>;
+}
+
 function TableView({ standings, matches }: { standings: Standing[]; matches: Match[] }) {
+  const [view, setView] = useState<'ranking' | 'match'>('ranking');
   const [selected, setSelected] = useState('');
   const [matchPicks, setMatchPicks] = useState<MatchPick[]>([]);
   const latestMatchWithResult = [...matches].reverse().find((match) => match.home_goals !== null && match.away_goals !== null);
@@ -568,17 +578,22 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
 
   return (
     <main className="mx-auto max-w-4xl py-6">
+      <div className="mb-6 grid grid-cols-2 rounded-lg bg-emerald-50 p-1">
+        <button onClick={() => setView('ranking')} className={`h-11 rounded-md text-sm font-black ${view === 'ranking' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Ranking</button>
+        <button onClick={() => setView('match')} className={`h-11 rounded-md text-sm font-black ${view === 'match' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Por partido</button>
+      </div>
+
+      {view === 'ranking' && <>
       {standings.length > 0 && <div className="mb-6 grid grid-cols-3 items-end gap-2 text-center">
         {[standings[1], standings[0], standings[2]].map((row, index) => {
           const heights = ['h-20', 'h-28', 'h-16'];
           const colors = ['bg-slate-400', 'bg-triondaGold', 'bg-[#B87333]'];
-          const medals = ['2', '1', '3'];
           return <div key={row?.player_id || index} className="min-w-0">
             <div className="truncate text-sm font-black text-slate-950">{row?.alias || '-'}</div>
             <div className={`mt-2 flex ${heights[index]} items-start justify-center rounded-t-lg ${colors[index]} pt-3 text-2xl font-black text-white`}>
               {row ? row.points : 0}
             </div>
-            <div className="bg-emerald-50 py-1 text-xs font-black text-pitch">#{medals[index]}</div>
+            <div className="bg-emerald-50 py-1 text-xs font-black text-pitch">#{row?.rank || '-'}</div>
           </div>;
         })}
       </div>}
@@ -587,7 +602,10 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
           <span>#</span><span>Jugador</span><span className="text-right">Pts</span><span className="text-right">Res.</span><span className="text-right">Exact.</span>
         </div>
         {standings.map((row) => <div key={row.player_id} className="grid grid-cols-[34px_minmax(0,1fr)_52px_48px_54px] gap-2 border-t border-emerald-100 px-3 py-4 text-sm sm:text-base">
-          <b className="text-triondaGold">{row.rank}</b>
+          <div className="flex flex-col leading-none">
+            <b className="text-triondaGold">{row.rank}</b>
+            <RankMovement delta={row.rank_delta} />
+          </div>
           <b className="truncate">{row.alias}</b>
           <b className="text-right text-pitch">{row.points}</b>
           <span className="text-right">{row.results}</span>
@@ -595,7 +613,9 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
         </div>)}
       </div>
       <p className="mt-5 text-center text-sm leading-6 text-slate-500">1 punto por resultado · 3 puntos por marcador exacto.</p>
-      <section className="mt-6 rounded-lg border border-emerald-200 bg-white p-4">
+      </>}
+
+      {view === 'match' && <section className="rounded-lg border border-emerald-200 bg-white p-4">
         <h2 className="text-lg font-black">Picks por partido</h2>
         <div className="mt-3 grid grid-cols-[48px_1fr_48px] items-center gap-2">
           <button className="icon-btn !h-12 !w-12" disabled={selectedIndex <= 0} onClick={() => moveMatch(-1)}><ChevronLeft /></button>
@@ -622,7 +642,7 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
             <span className="rounded-full bg-emerald-50 px-2 py-1 text-center text-sm font-black text-pitch">{pick.points} pts</span>
           </div>)}
         </div>
-      </section>
+      </section>}
     </main>
   );
 }
@@ -636,6 +656,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   const [name, setName] = useState('');
   const [year, setYear] = useState('');
   const [mode, setMode] = useState<'picks' | 'results' | 'settings'>('picks');
+  const [resultDate, setResultDate] = useState(todayLocalKey());
   const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true, show_match_picks: false, show_pick_scores: true });
 
   async function admin<T>(url: string, options: RequestInit = {}) {
@@ -716,6 +737,11 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     if (adminReady && selected) selectPlayer(selected);
   }, [adminReady, selected]);
 
+  const resultDays = Array.from(new Set(matches.map((match) => localDateKey(match.kickoff_utc))));
+  const resultMatches = matches
+    .filter((match) => localDateKey(match.kickoff_utc) === resultDate)
+    .sort((a, b) => Number(a.home_goals !== null && a.away_goals !== null) - Number(b.home_goals !== null && b.away_goals !== null));
+
   if (!adminReady) {
     return (
       <main className="mx-auto max-w-xl py-6">
@@ -733,11 +759,11 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   return (
     <main className="mx-auto max-w-4xl py-5">
       <div className="mt-4 grid grid-cols-3 rounded-lg bg-emerald-50 p-1">
-        <button onClick={() => setMode('picks')} className={`h-11 rounded-md text-sm font-black ${mode === 'picks' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Editar picks</button>
+        <button onClick={() => setMode('picks')} className={`h-11 rounded-md text-sm font-black ${mode === 'picks' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Jugadores</button>
         <button onClick={() => setMode('results')} className={`h-11 rounded-md text-sm font-black ${mode === 'results' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Resultados</button>
         <button onClick={() => setMode('settings')} className={`h-11 rounded-md text-sm font-black ${mode === 'settings' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Ajustes</button>
       </div>
-      <h2 className="mt-6 text-lg font-black text-pitch">{mode === 'picks' ? 'Captura de WhatsApp' : mode === 'results' ? 'Resultados oficiales' : 'Ajustes'}</h2>
+      {mode !== 'picks' && <h2 className="mt-6 text-lg font-black text-pitch">{mode === 'results' ? 'Resultados oficiales' : 'Ajustes'}</h2>}
       {mode === 'settings' ? <section className="mt-3 rounded-lg border border-emerald-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -810,13 +836,23 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
         </div>
       </section> : mode === 'picks' ? <div className="mt-3 space-y-4">
         <section className="rounded-lg border border-emerald-200 bg-white p-4">
-          <h3 className="font-black">Selecciona jugador</h3>
+          <h3 className="font-black">Agregar jugador</h3>
+          <div className="mt-3 grid grid-cols-[1fr_100px_48px] gap-2"><input className="input !mt-0" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" /><input className="input !mt-0" value={year} onChange={(e) => setYear(e.target.value)} placeholder="Año" /><button onClick={addPlayer} className="rounded-lg bg-pitch text-white"><UserPlus className="mx-auto" /></button></div>
+          <h3 className="mt-5 border-t border-slate-100 pt-4 font-black">Selecciona jugador</h3>
           <div className="mt-3 flex flex-wrap gap-2">{players.filter((p) => Boolean(p.active)).map((p) => <button key={p.id} onClick={() => selectPlayer(p.id)} className={`rounded-full px-4 py-2 text-sm font-black ${selected === p.id ? 'bg-pitch text-white' : 'bg-emerald-50 text-slate-600'}`}>{p.alias}</button>)}</div>
-          <div className="mt-4 grid grid-cols-[1fr_100px_48px] gap-2"><input className="input !mt-0" value={name} onChange={(e) => setName(e.target.value)} placeholder="Agregar jugador" /><input className="input !mt-0" value={year} onChange={(e) => setYear(e.target.value)} placeholder="Año" /><button onClick={addPlayer} className="rounded-lg bg-pitch text-white"><UserPlus className="mx-auto" /></button></div>
         </section>
         {matches.map((match) => <MatchCard key={match.id} match={match} pick={draft[match.id]} setScore={changeDraft} forceOpen />)}
       </div> : <div className="mt-3 space-y-3">
-        {matches.map((match) => {
+        <section className="rounded-lg border border-emerald-200 bg-white p-4 shadow-sm">
+          <label className="block text-sm font-black text-slate-950">Fecha</label>
+          <select className="input" value={resultDate} onChange={(e) => setResultDate(e.target.value)}>
+            {!resultDays.includes(resultDate) && <option value={resultDate}>{localDateLabel(`${resultDate}T12:00:00Z`)}</option>}
+            {resultDays.map((day) => <option key={day} value={day}>{localDateLabel(`${day}T12:00:00Z`)}</option>)}
+          </select>
+          <p className="mt-2 text-xs font-bold text-slate-400">Primero aparecen los partidos de esa fecha que todavía no tienen resultado.</p>
+        </section>
+        {resultMatches.length === 0 && <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm font-bold text-slate-400">No hay partidos en esta fecha.</div>}
+        {resultMatches.map((match) => {
           const p: ResultDraft = { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
           return <article key={match.id} className="rounded-lg border border-emerald-200 bg-white p-3 shadow-sm">
             <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Grupo {match.grp} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</div>

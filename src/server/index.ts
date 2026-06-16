@@ -224,7 +224,25 @@ app.post('/api/picks', requirePlayer, async (req, res) => {
   res.status(rejected.length ? 409 : 200).json({ saved, rejected });
 });
 
+function rankStandingRows(rows: any[]) {
+  let previousScore = '';
+  let previousRank = 0;
+  return rows.map((row: any, index: number) => {
+    const score = `${row.points}|${row.exacts}|${row.results}`;
+    const rank = score === previousScore ? previousRank : index + 1;
+    previousScore = score;
+    previousRank = rank;
+    return { ...row, rank };
+  });
+}
+
 app.get('/api/standings', async (_req, res) => {
+  const latest = await query<{ jornada: number | null }>(`
+    SELECT MAX(jornada) jornada
+    FROM matches
+    WHERE home_goals IS NOT NULL AND away_goals IS NOT NULL
+  `);
+  const latestJornada = latest[0]?.jornada ?? null;
   const rows = await query<any>(`
     SELECT
       p.id player_id, p.alias,
@@ -249,7 +267,38 @@ app.get('/api/standings', async (_req, res) => {
     GROUP BY p.id, p.alias
     ORDER BY points DESC, exacts DESC, results DESC, p.alias ASC
   `);
-  res.json(rows.map((row: any, index: number) => ({ ...row, rank: index + 1 })));
+  const rankedRows = rankStandingRows(rows);
+
+  if (latestJornada === null) {
+    return res.json(rankedRows.map((row) => ({ ...row, rank_delta: 0 })));
+  }
+
+  const previousRows = await query<any>(`
+    SELECT
+      p.id player_id, p.alias,
+      COALESCE(SUM(CASE
+        WHEN m.jornada >= :latest_jornada OR m.home_goals IS NULL OR m.away_goals IS NULL THEN 0
+        WHEN pk.home_goals = m.home_goals AND pk.away_goals = m.away_goals THEN 3
+        WHEN SIGN(pk.home_goals - pk.away_goals) = SIGN(m.home_goals - m.away_goals) THEN 1
+        ELSE 0
+      END), 0) points,
+      COALESCE(SUM(CASE
+        WHEN m.jornada < :latest_jornada AND m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND pk.home_goals = m.home_goals AND pk.away_goals = m.away_goals THEN 1
+        ELSE 0
+      END), 0) exacts,
+      COALESCE(SUM(CASE
+        WHEN m.jornada < :latest_jornada AND m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND SIGN(pk.home_goals - pk.away_goals) = SIGN(m.home_goals - m.away_goals) THEN 1
+        ELSE 0
+      END), 0) results
+    FROM players p
+    LEFT JOIN picks pk ON pk.player_id = p.id
+    LEFT JOIN matches m ON m.id = pk.match_id
+    WHERE p.active = 1
+    GROUP BY p.id, p.alias
+    ORDER BY points DESC, exacts DESC, results DESC, p.alias ASC
+  `, { latest_jornada: latestJornada });
+  const previousRanks = new Map(rankStandingRows(previousRows).map((row) => [row.player_id, row.rank]));
+  res.json(rankedRows.map((row) => ({ ...row, rank_delta: (previousRanks.get(row.player_id) || row.rank) - row.rank })));
 });
 
 app.get('/api/matches/:matchId/picks', async (req, res) => {
