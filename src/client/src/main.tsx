@@ -550,7 +550,8 @@ function TeamScore({ name, flag, value, locked, onMinus, onPlus }: { name: strin
 function TableView({ standings, matches }: { standings: Standing[]; matches: Match[] }) {
   const [selected, setSelected] = useState('');
   const [matchPicks, setMatchPicks] = useState<MatchPick[]>([]);
-  const selectedMatch = matches.find((match) => match.id === selected) || matches[0];
+  const latestMatchWithResult = [...matches].reverse().find((match) => match.home_goals !== null && match.away_goals !== null);
+  const selectedMatch = matches.find((match) => match.id === selected) || latestMatchWithResult || matches[0];
   const selectedIndex = selectedMatch ? matches.findIndex((match) => match.id === selectedMatch.id) : -1;
 
   useEffect(() => {
@@ -606,7 +607,9 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
         {selectedMatch && <div className="mt-4 rounded-lg bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 font-black"><img src={flagUrl(selectedMatch.home_flag)} className="h-6 w-8 object-contain" alt="" />{selectedMatch.home_name}</div>
-            <div className="text-sm font-black text-slate-500">vs</div>
+            <div className="text-sm font-black text-slate-500">
+              {selectedMatch.home_goals !== null && selectedMatch.away_goals !== null ? `${selectedMatch.home_goals} - ${selectedMatch.away_goals}` : 'vs'}
+            </div>
             <div className="flex items-center gap-2 text-right font-black">{selectedMatch.away_name}<img src={flagUrl(selectedMatch.away_flag)} className="h-6 w-8 object-contain" alt="" /></div>
           </div>
           <div className="mt-1 text-center text-xs font-bold uppercase tracking-[0.18em] text-slate-400">{localDay(selectedMatch.kickoff_utc)} · {localTime(selectedMatch.kickoff_utc)}</div>
@@ -729,11 +732,6 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
 
   return (
     <main className="mx-auto max-w-4xl py-5">
-      <div className="mt-4 rounded-lg border border-emerald-200 bg-white p-4">
-        <h2 className="font-black">Jugadores</h2>
-        <div className="mt-3 flex flex-wrap gap-2">{players.filter((p) => Boolean(p.active)).map((p) => <button key={p.id} onClick={() => selectPlayer(p.id)} className={`rounded-full px-4 py-2 text-sm font-black ${selected === p.id ? 'bg-pitch text-white' : 'bg-emerald-50 text-slate-600'}`}>{p.alias}</button>)}</div>
-        <div className="mt-4 grid grid-cols-[1fr_100px_48px] gap-2"><input className="input !mt-0" value={name} onChange={(e) => setName(e.target.value)} placeholder="Agregar jugador" /><input className="input !mt-0" value={year} onChange={(e) => setYear(e.target.value)} placeholder="Año" /><button onClick={addPlayer} className="rounded-lg bg-pitch text-white"><UserPlus className="mx-auto" /></button></div>
-      </div>
       <div className="mt-4 grid grid-cols-3 rounded-lg bg-emerald-50 p-1">
         <button onClick={() => setMode('picks')} className={`h-11 rounded-md text-sm font-black ${mode === 'picks' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Editar picks</button>
         <button onClick={() => setMode('results')} className={`h-11 rounded-md text-sm font-black ${mode === 'results' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Resultados</button>
@@ -811,6 +809,11 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
           </div>
         </div>
       </section> : mode === 'picks' ? <div className="mt-3 space-y-4">
+        <section className="rounded-lg border border-emerald-200 bg-white p-4">
+          <h3 className="font-black">Selecciona jugador</h3>
+          <div className="mt-3 flex flex-wrap gap-2">{players.filter((p) => Boolean(p.active)).map((p) => <button key={p.id} onClick={() => selectPlayer(p.id)} className={`rounded-full px-4 py-2 text-sm font-black ${selected === p.id ? 'bg-pitch text-white' : 'bg-emerald-50 text-slate-600'}`}>{p.alias}</button>)}</div>
+          <div className="mt-4 grid grid-cols-[1fr_100px_48px] gap-2"><input className="input !mt-0" value={name} onChange={(e) => setName(e.target.value)} placeholder="Agregar jugador" /><input className="input !mt-0" value={year} onChange={(e) => setYear(e.target.value)} placeholder="Año" /><button onClick={addPlayer} className="rounded-lg bg-pitch text-white"><UserPlus className="mx-auto" /></button></div>
+        </section>
         {matches.map((match) => <MatchCard key={match.id} match={match} pick={draft[match.id]} setScore={changeDraft} forceOpen />)}
       </div> : <div className="mt-3 space-y-3">
         {matches.map((match) => {
