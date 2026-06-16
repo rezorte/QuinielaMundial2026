@@ -548,11 +548,11 @@ function TeamScore({ name, flag, value, locked, onMinus, onPlus }: { name: strin
 }
 
 function RankMovement({ delta }: { delta: number }) {
-  if (!delta) return <span className="text-[11px] font-black text-slate-300">-</span>;
+  if (!delta) return null;
   const movedUp = delta > 0;
-  return <span className={`inline-flex items-center gap-0.5 text-[11px] font-black ${movedUp ? 'text-pitch' : 'text-triondaRed'}`}>
+  return <span className={`inline-flex items-center gap-0.5 text-[11px] font-black ${movedUp ? 'text-pitch' : 'text-triondaRed'}`} title={movedUp ? `Subió ${delta}` : `Bajó ${Math.abs(delta)}`}>
     {movedUp ? <ArrowUp size={12} strokeWidth={3} /> : <ArrowDown size={12} strokeWidth={3} />}
-    {Math.abs(delta)}
+    {movedUp ? `+${delta}` : `-${Math.abs(delta)}`}
   </span>;
 }
 
