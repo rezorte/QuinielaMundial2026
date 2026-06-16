@@ -10,19 +10,19 @@
 
 @layer components {
   .input {
-    @apply mt-2 h-14 w-full rounded-lg border border-emerald-200 bg-white px-4 text-lg font-bold outline-none transition focus:border-pitch focus:ring-4 focus:ring-emerald-100;
+    @apply mt-2 h-14 w-full rounded-lg border border-slate-200 bg-white px-4 text-lg font-bold outline-none transition focus:border-slate-950 focus:ring-4 focus:ring-slate-200;
   }
   .icon-btn {
-    @apply flex h-14 w-14 items-center justify-center rounded-lg border border-emerald-200 bg-white text-pitch shadow-sm disabled:opacity-30;
+    @apply flex h-14 w-14 items-center justify-center rounded-lg bg-white text-slate-700 shadow-md shadow-slate-200/70 ring-1 ring-slate-100 disabled:opacity-30;
   }
   .score-btn {
-    @apply flex h-11 w-11 items-center justify-center rounded-lg border-2 border-pitch bg-white text-2xl font-black text-pitch disabled:border-slate-200 disabled:text-slate-300;
+    @apply flex h-11 w-11 items-center justify-center rounded-lg border-2 border-slate-950 bg-white text-2xl font-black text-slate-700 disabled:border-slate-200 disabled:text-slate-300;
   }
   .score-btn.filled,
   .mini-btn.filled {
-    @apply border-pitch bg-pitch text-white;
+    @apply border-slate-950 bg-slate-950 text-white;
   }
   .mini-btn {
-    @apply flex h-10 w-10 items-center justify-center rounded-lg border-2 border-pitch bg-white text-xl font-black text-pitch;
+    @apply flex h-10 w-10 items-center justify-center rounded-lg border-2 border-slate-950 bg-white text-xl font-black text-slate-700;
   }
 }
