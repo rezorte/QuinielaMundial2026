@@ -773,8 +773,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
 
   const resultDays = Array.from(new Set(matches.map((match) => localDateKey(match.kickoff_utc))));
   const resultMatches = matches
-    .filter((match) => localDateKey(match.kickoff_utc) === resultDate)
-    .sort((a, b) => Number(a.home_goals !== null && a.away_goals !== null) - Number(b.home_goals !== null && b.away_goals !== null));
+    .filter((match) => localDateKey(match.kickoff_utc) === resultDate);
 
   if (!adminReady) {
     return (
@@ -883,7 +882,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
             {!resultDays.includes(resultDate) && <option value={resultDate}>{localDateLabel(`${resultDate}T12:00:00Z`)}</option>}
             {resultDays.map((day) => <option key={day} value={day}>{localDateLabel(`${day}T12:00:00Z`)}</option>)}
           </select>
-          <p className="mt-2 text-xs font-bold text-slate-400">Primero aparecen los partidos de esa fecha que todavía no tienen resultado.</p>
+          <p className="mt-2 text-xs font-bold text-slate-400">Los partidos se mantienen en orden de horario para capturarlos sin que se muevan.</p>
         </section>
         {resultMatches.length === 0 && <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm font-bold text-slate-400">No hay partidos en esta fecha.</div>}
         {resultMatches.map((match) => {
