@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Lock, LogOut, Pencil, Settings, Trophy, UserPlus } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, CircleDot, Lock, LogOut, Pencil, Settings, Trophy, UserPlus } from 'lucide-react';
 import './styles.css';
 
 type Match = {
@@ -250,7 +250,7 @@ function App() {
     <div className="min-h-screen bg-slate-50 px-5 pb-24">
       <Brand player={player} onEditAlias={() => { setAliasDraft(player.alias); setAliasOpen(true); }} onSwitchUser={switchUser} />
       {tab === 'fill' && <FillView matches={matches} picks={picks} setPicks={setPicks} showStats={settings.show_team_stats} showMatchPicks={settings.show_match_picks} showPickScores={settings.show_pick_scores} />}
-      {tab === 'table' && <TableView standings={standings} matches={matches} />}
+      {tab === 'table' && <TableView standings={standings} matches={matches} player={player} />}
       {tab === 'admin' && <AdminView matches={matches} reload={load} />}
       {aliasOpen && <div className="fixed inset-0 z-40 flex items-end bg-pitch/30 p-4">
         <div className="mx-auto w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
@@ -264,7 +264,7 @@ function App() {
       </div>}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-100 bg-white/95 backdrop-blur">
         <div className="mx-auto grid max-w-4xl grid-cols-3">
-          <NavButton active={tab === 'fill'} onClick={() => setTab('fill')} icon={<span className="text-xl leading-none">⚽</span>} label="Llenar" />
+          <NavButton active={tab === 'fill'} onClick={() => setTab('fill')} icon={<CircleDot size={22} />} label="Llenar" />
           <NavButton active={tab === 'table'} onClick={() => setTab('table')} icon={<Trophy size={22} />} label="Tabla" />
           <NavButton active={tab === 'admin'} onClick={() => setTab('admin')} icon={<Settings size={22} />} label="Organiza" />
         </div>
@@ -556,7 +556,7 @@ function RankMovement({ delta }: { delta: number }) {
   </span>;
 }
 
-function TableView({ standings, matches }: { standings: Standing[]; matches: Match[] }) {
+function TableView({ standings, matches, player }: { standings: Standing[]; matches: Match[]; player: Player }) {
   const [view, setView] = useState<'ranking' | 'match'>('ranking');
   const [selected, setSelected] = useState('');
   const [matchMenuOpen, setMatchMenuOpen] = useState(false);
@@ -603,7 +603,9 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
         <div className="grid grid-cols-[34px_minmax(0,1fr)_52px_48px_54px] gap-2 bg-pitch px-3 py-3 text-xs font-black text-white sm:text-sm">
           <span>#</span><span>Jugador</span><span className="text-right">Pts</span><span className="text-right">Res.</span><span className="text-right">Exact.</span>
         </div>
-        {standings.map((row) => <div key={row.player_id} className="grid grid-cols-[34px_minmax(0,1fr)_52px_48px_54px] gap-2 border-t border-slate-100 px-3 py-4 text-sm sm:text-base">
+        {standings.map((row) => {
+          const isCurrentPlayer = row.player_id === player.id;
+          return <div key={row.player_id} className={`grid grid-cols-[34px_minmax(0,1fr)_52px_48px_54px] gap-2 border-t px-3 py-4 text-sm sm:text-base ${isCurrentPlayer ? 'border-l-4 border-l-pitch border-t-emerald-100 bg-emerald-50/70' : 'border-t-slate-100'}`}>
           <div className="flex flex-col leading-none">
             <b className="text-triondaGold">{row.rank}</b>
             <RankMovement delta={row.rank_delta} />
@@ -612,7 +614,8 @@ function TableView({ standings, matches }: { standings: Standing[]; matches: Mat
           <b className="text-right text-pitch">{row.points}</b>
           <span className="text-right">{row.results}</span>
           <span className="text-right">{row.exacts}</span>
-        </div>)}
+        </div>;
+        })}
       </div>
       <p className="mt-5 text-center text-sm leading-6 text-slate-500">1 punto por resultado · 3 puntos por marcador exacto.</p>
       </>}
@@ -677,6 +680,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   const [year, setYear] = useState('');
   const [mode, setMode] = useState<'picks' | 'results' | 'settings'>('picks');
   const [resultDate, setResultDate] = useState(todayLocalKey());
+  const [resultDraft, setResultDraft] = useState<Record<string, ResultDraft>>({});
   const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true, show_match_picks: false, show_pick_scores: true });
 
   async function admin<T>(url: string, options: RequestInit = {}) {
@@ -709,17 +713,27 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
       await reload();
     }
   }
-  async function saveResult(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
-    const current: ResultDraft = { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
+  function changeResult(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
+    const current = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
     const currentValue = current[side];
     const nextValue = currentValue === null ? 0 : Math.max(0, currentValue + delta);
-    const next = { ...current, [side]: nextValue };
-    await admin('/api/admin/result', { method: 'POST', body: JSON.stringify(next) });
+    setResultDraft({ ...resultDraft, [match.id]: { ...current, [side]: nextValue } });
+  }
+
+  async function saveResult(match: Match) {
+    const current = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
+    if (current.home_goals === null || current.away_goals === null) {
+      alert('Captura los dos marcadores antes de guardar.');
+      return;
+    }
+    await admin('/api/admin/result', { method: 'POST', body: JSON.stringify(current) });
+    setResultDraft(({ [match.id]: _removed, ...rest }) => rest);
     await reload();
   }
 
   async function clearResult(match: Match) {
     await admin('/api/admin/result', { method: 'POST', body: JSON.stringify({ match_id: match.id, home_goals: null, away_goals: null }) });
+    setResultDraft(({ [match.id]: _removed, ...rest }) => rest);
     await reload();
   }
 
@@ -873,7 +887,9 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
         </section>
         {resultMatches.length === 0 && <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm font-bold text-slate-400">No hay partidos en esta fecha.</div>}
         {resultMatches.map((match) => {
-          const p: ResultDraft = { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
+          const p: ResultDraft = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
+          const dirty = p.home_goals !== match.home_goals || p.away_goals !== match.away_goals;
+          const canSave = p.home_goals !== null && p.away_goals !== null;
           return <article key={match.id} className="rounded-lg bg-white p-3 border border-slate-200 shadow-md shadow-slate-200/60">
             <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Grupo {match.grp} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</div>
             <div className="grid grid-cols-2 gap-3">
@@ -887,15 +903,18 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
               </div>
             </div>
             <div className="mt-3 grid grid-cols-[40px_32px_40px_24px_40px_32px_40px] items-center justify-center gap-1">
-              <button className="mini-btn !h-10 !w-10" onClick={() => saveResult(match, 'home_goals', -1)}>-</button>
+              <button className="mini-btn !h-10 !w-10" onClick={() => changeResult(match, 'home_goals', -1)}>-</button>
               <b className="text-center text-lg">{p.home_goals ?? '-'}</b>
-              <button className="mini-btn filled !h-10 !w-10" onClick={() => saveResult(match, 'home_goals', 1)}>+</button>
+              <button className="mini-btn filled !h-10 !w-10" onClick={() => changeResult(match, 'home_goals', 1)}>+</button>
               <span className="text-center font-black text-slate-300">-</span>
-              <button className="mini-btn !h-10 !w-10" onClick={() => saveResult(match, 'away_goals', -1)}>-</button>
+              <button className="mini-btn !h-10 !w-10" onClick={() => changeResult(match, 'away_goals', -1)}>-</button>
               <b className="text-center text-lg">{p.away_goals ?? '-'}</b>
-              <button className="mini-btn filled !h-10 !w-10" onClick={() => saveResult(match, 'away_goals', 1)}>+</button>
+              <button className="mini-btn filled !h-10 !w-10" onClick={() => changeResult(match, 'away_goals', 1)}>+</button>
             </div>
-            {(p.home_goals !== null || p.away_goals !== null) && <button onClick={() => clearResult(match)} className="mx-auto mt-3 block rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">Limpiar resultado</button>}
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button disabled={!dirty || !canSave} onClick={() => saveResult(match)} className="h-10 rounded-lg bg-pitch text-sm font-black text-white disabled:bg-slate-200 disabled:text-slate-400">Guardar</button>
+              {(p.home_goals !== null || p.away_goals !== null || match.home_goals !== null || match.away_goals !== null) && <button onClick={() => clearResult(match)} className="h-10 rounded-lg bg-slate-100 text-xs font-black text-slate-500">Limpiar</button>}
+            </div>
           </article>;
         })}
       </div>}
