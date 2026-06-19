@@ -679,6 +679,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   const [name, setName] = useState('');
   const [year, setYear] = useState('');
   const [mode, setMode] = useState<'picks' | 'results' | 'settings'>('picks');
+  const [pickDate, setPickDate] = useState(todayLocalKey());
   const [resultDate, setResultDate] = useState(todayLocalKey());
   const [resultDraft, setResultDraft] = useState<Record<string, ResultDraft>>({});
   const [settings, setSettings] = useState<AppSettings>({ late_picks_open: false, reveal_picks: false, show_team_stats: false, registration_open: true, show_match_picks: false, show_pick_scores: true });
@@ -771,7 +772,9 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     if (adminReady && selected) selectPlayer(selected);
   }, [adminReady, selected]);
 
-  const resultDays = Array.from(new Set(matches.map((match) => localDateKey(match.kickoff_utc))));
+  const adminDays = Array.from(new Set(matches.map((match) => localDateKey(match.kickoff_utc))));
+  const pickMatches = matches
+    .filter((match) => localDateKey(match.kickoff_utc) === pickDate);
   const resultMatches = matches
     .filter((match) => localDateKey(match.kickoff_utc) === resultDate);
 
@@ -874,13 +877,22 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
           <h3 className="mt-5 border-t border-slate-100 pt-4 font-black">Selecciona jugador</h3>
           <div className="mt-3 flex flex-wrap gap-2">{players.filter((p) => Boolean(p.active)).map((p) => <button key={p.id} onClick={() => selectPlayer(p.id)} className={`rounded-full px-4 py-2 text-sm font-black ${selected === p.id ? 'bg-pitch text-white' : 'bg-slate-100 text-slate-600'}`}>{p.alias}</button>)}</div>
         </section>
-        {matches.map((match) => <MatchCard key={match.id} match={match} pick={draft[match.id]} setScore={changeDraft} forceOpen />)}
+        <section className="rounded-lg bg-white p-4 border border-slate-200 shadow-md shadow-slate-200/60">
+          <label className="block text-sm font-black text-slate-950">Fecha</label>
+          <select className="input" value={pickDate} onChange={(e) => setPickDate(e.target.value)}>
+            {!adminDays.includes(pickDate) && <option value={pickDate}>{localDateLabel(`${pickDate}T12:00:00Z`)}</option>}
+            {adminDays.map((day) => <option key={day} value={day}>{localDateLabel(`${day}T12:00:00Z`)}</option>)}
+          </select>
+          <p className="mt-2 text-xs font-bold text-slate-400">Muestra solo los partidos de esa fecha para capturar picks más rápido.</p>
+        </section>
+        {pickMatches.length === 0 && <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm font-bold text-slate-400">No hay partidos en esta fecha.</div>}
+        {pickMatches.map((match) => <MatchCard key={match.id} match={match} pick={draft[match.id]} setScore={changeDraft} forceOpen />)}
       </div> : <div className="mt-3 space-y-3">
         <section className="rounded-lg bg-white p-4 border border-slate-200 shadow-md shadow-slate-200/60">
           <label className="block text-sm font-black text-slate-950">Fecha</label>
           <select className="input" value={resultDate} onChange={(e) => setResultDate(e.target.value)}>
-            {!resultDays.includes(resultDate) && <option value={resultDate}>{localDateLabel(`${resultDate}T12:00:00Z`)}</option>}
-            {resultDays.map((day) => <option key={day} value={day}>{localDateLabel(`${day}T12:00:00Z`)}</option>)}
+            {!adminDays.includes(resultDate) && <option value={resultDate}>{localDateLabel(`${resultDate}T12:00:00Z`)}</option>}
+            {adminDays.map((day) => <option key={day} value={day}>{localDateLabel(`${day}T12:00:00Z`)}</option>)}
           </select>
           <p className="mt-2 text-xs font-bold text-slate-400">Los partidos se mantienen en orden de horario para capturarlos sin que se muevan.</p>
         </section>
