@@ -777,6 +777,13 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     .filter((match) => localDateKey(match.kickoff_utc) === pickDate);
   const resultMatches = matches
     .filter((match) => localDateKey(match.kickoff_utc) === resultDate);
+  const missingResultMatches = matches.filter((match) => new Date(match.kickoff_utc).getTime() <= Date.now() && (match.home_goals === null || match.away_goals === null));
+  const missingResultDays = Array.from(new Set(missingResultMatches.map((match) => localDateKey(match.kickoff_utc))));
+
+  function goToMissingResults(day: string) {
+    setMode('results');
+    setResultDate(day);
+  }
 
   if (!adminReady) {
     return (
@@ -796,9 +803,29 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     <main className="mx-auto max-w-4xl py-5">
       <div className="mt-4 grid grid-cols-3 rounded-lg bg-slate-100 p-1">
         <button onClick={() => setMode('picks')} className={`h-11 rounded-md text-sm font-black ${mode === 'picks' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Jugadores</button>
-        <button onClick={() => setMode('results')} className={`h-11 rounded-md text-sm font-black ${mode === 'results' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Resultados</button>
+        <button onClick={() => setMode('results')} className={`relative h-11 rounded-md text-sm font-black ${mode === 'results' ? 'bg-pitch text-white' : 'text-slate-500'}`}>
+          Resultados
+          {missingResultMatches.length > 0 && <span className={`absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-black ${mode === 'results' ? 'bg-white text-pitch' : 'bg-triondaRed text-white'}`}>{missingResultMatches.length}</span>}
+        </button>
         <button onClick={() => setMode('settings')} className={`h-11 rounded-md text-sm font-black ${mode === 'settings' ? 'bg-pitch text-white' : 'text-slate-500'}`}>Ajustes</button>
       </div>
+      {missingResultMatches.length > 0 && <section className="mt-4 rounded-lg border border-red-100 bg-red-50 p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-black text-triondaRed">Resultados pendientes</h3>
+            <p className="mt-1 text-sm font-bold leading-5 text-red-700">Faltan {missingResultMatches.length} partido{missingResultMatches.length === 1 ? '' : 's'} ya iniciado{missingResultMatches.length === 1 ? '' : 's'} por capturar.</p>
+          </div>
+          <button onClick={() => goToMissingResults(missingResultDays[0])} className="shrink-0 rounded-lg bg-triondaRed px-3 py-2 text-xs font-black text-white">Revisar</button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {missingResultDays.map((day) => {
+            const count = missingResultMatches.filter((match) => localDateKey(match.kickoff_utc) === day).length;
+            return <button key={day} onClick={() => goToMissingResults(day)} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-red-700 shadow-sm ring-1 ring-red-100">
+              {localDateLabel(`${day}T12:00:00Z`)} · {count}
+            </button>;
+          })}
+        </div>
+      </section>}
       {mode !== 'picks' && <h2 className="mt-6 text-lg font-black text-pitch">{mode === 'results' ? 'Resultados oficiales' : 'Ajustes'}</h2>}
       {mode === 'settings' ? <section className="mt-3 rounded-lg bg-white p-4 border border-slate-200 shadow-md shadow-slate-200/60">
         <div className="flex items-center justify-between gap-4">
