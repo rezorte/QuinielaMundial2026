@@ -329,7 +329,7 @@ function FillView({ matches, picks, setPicks, showStats, showMatchPicks, showPic
         <button className="icon-btn" disabled={index === days.length - 1} onClick={() => setIndex(index + 1)}><ChevronRight /></button>
       </div>
       <div className="space-y-4">
-        {dayMatches.map((match) => <MatchCard key={match.id} match={match} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} showStats={showStats} showMatchPicks={showMatchPicks} showPickScores={showPickScores} />)}
+        {dayMatches.map((match) => <MatchCard key={match.id} match={match} allMatches={matches} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} showStats={showStats} showMatchPicks={showMatchPicks} showPickScores={showPickScores} />)}
       </div>
       <div className={`fixed bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full px-4 py-2 text-xs font-black shadow-sm transition-all ${isSaving ? 'bg-pitch text-white opacity-100' : savedPulse ? 'bg-slate-100 text-pitch opacity-100' : 'pointer-events-none opacity-0'}`}>
         {isSaving ? 'Guardando...' : 'Guardado'}
@@ -338,7 +338,7 @@ function FillView({ matches, picks, setPicks, showStats, showMatchPicks, showPic
   );
 }
 
-function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, showStats = false, showMatchPicks = false, showPickScores = false }: { match: Match; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean; saving?: boolean; showStats?: boolean; showMatchPicks?: boolean; showPickScores?: boolean }) {
+function MatchCard({ match, allMatches = [], pick, setScore, forceOpen = false, saving = false, showStats = false, showMatchPicks = false, showPickScores = false }: { match: Match; allMatches?: Match[]; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean; saving?: boolean; showStats?: boolean; showMatchPicks?: boolean; showPickScores?: boolean }) {
   const locked = Boolean(match.locked) && !forceOpen;
   const points = pickPoints(pick, match);
   return (
@@ -368,7 +368,7 @@ function MatchCard({ match, pick, setScore, forceOpen = false, saving = false, s
         </span>
       </div>}
       {showMatchPicks && <MatchPicksPanel match={match} />}
-      {showStats && <StatsPanel match={match} />}
+      {showStats && <StatsPanel match={match} allMatches={allMatches} />}
     </article>
   );
 }
@@ -403,9 +403,12 @@ function MatchPicksPanel({ match }: { match: Match }) {
   );
 }
 
-function StatsPanel({ match }: { match: Match }) {
+function StatsPanel({ match, allMatches }: { match: Match; allMatches: Match[] }) {
   const [open, setOpen] = useState(false);
   const [stats, setStats] = useState<MatchStats | null>(null);
+  const homeRecent = recentTeamResults(match.home_code, match, allMatches);
+  const awayRecent = recentTeamResults(match.away_code, match, allMatches);
+  const hasRecentResults = homeRecent.length > 0 || awayRecent.length > 0;
 
   async function toggle() {
     const next = !open;
@@ -422,7 +425,8 @@ function StatsPanel({ match }: { match: Match }) {
         Datos para decidir
       </button>
       {open && <div className="mt-3">
-        {!stats || (!stats.home && !stats.away && !stats.head_to_head) ? <p className="text-sm leading-6 text-slate-500">Datos oficiales validados pendientes de cargar.</p> : <>
+        {hasRecentResults && <RecentResultsComparison match={match} homeResults={homeRecent} awayResults={awayRecent} />}
+        {!stats || (!stats.home && !stats.away && !stats.head_to_head) ? <p className={`text-sm leading-6 text-slate-500 ${hasRecentResults ? 'mt-3' : ''}`}>Datos oficiales validados pendientes de cargar.</p> : <>
           <StatsComparison match={match} home={stats.home} away={stats.away} />
           {stats.head_to_head && <div className="mt-3 rounded-lg border border-slate-100 bg-white p-3 text-sm">
             <b>Último enfrentamiento</b>
@@ -431,6 +435,70 @@ function StatsPanel({ match }: { match: Match }) {
           </div>}
         </>}
       </div>}
+    </div>
+  );
+}
+
+function recentTeamResults(teamCode: string, currentMatch: Match, matches: Match[]) {
+  const currentKickoff = new Date(currentMatch.kickoff_utc).getTime();
+  return matches
+    .filter((match) => match.id !== currentMatch.id)
+    .filter((match) => match.home_goals !== null && match.away_goals !== null)
+    .filter((match) => new Date(match.kickoff_utc).getTime() < currentKickoff)
+    .filter((match) => match.home_code === teamCode || match.away_code === teamCode)
+    .sort((a, b) => new Date(b.kickoff_utc).getTime() - new Date(a.kickoff_utc).getTime())
+    .slice(0, 3);
+}
+
+function RecentResultsComparison({ match, homeResults, awayResults }: { match: Match; homeResults: Match[]; awayResults: Match[] }) {
+  return (
+    <div className="mb-3 overflow-hidden rounded-lg border border-slate-100 bg-white">
+      <div className="grid grid-cols-2 divide-x divide-slate-100 bg-slate-50">
+        <RecentTeamResults teamCode={match.home_code} teamName={match.home_name} teamFlag={match.home_flag} results={homeResults} />
+        <RecentTeamResults teamCode={match.away_code} teamName={match.away_name} teamFlag={match.away_flag} results={awayResults} />
+      </div>
+    </div>
+  );
+}
+
+function RecentTeamResults({ teamCode, teamName, teamFlag, results }: { teamCode: string; teamName: string; teamFlag: string; results: Match[] }) {
+  return (
+    <section className="min-w-0 p-3">
+      <div className="flex items-center gap-2">
+        <img src={flagUrl(teamFlag)} alt="" className="h-5 w-7 rounded-sm object-cover shadow-sm" />
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-black text-slate-950">{teamName}</h3>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Últimos resultados</p>
+        </div>
+      </div>
+      <div className="mt-3 space-y-2">
+        {results.length === 0 && <div className="rounded-md bg-white px-2.5 py-2 text-xs font-bold leading-5 text-slate-400">Sin resultados registrados</div>}
+        {results.map((result) => <RecentResultRow key={result.id} teamCode={teamCode} result={result} />)}
+      </div>
+    </section>
+  );
+}
+
+function RecentResultRow({ teamCode, result }: { teamCode: string; result: Match }) {
+  const isHome = result.home_code === teamCode;
+  const teamGoals = isHome ? result.home_goals : result.away_goals;
+  const opponentGoals = isHome ? result.away_goals : result.home_goals;
+  const opponentName = isHome ? result.away_name : result.home_name;
+  const opponentFlag = isHome ? result.away_flag : result.home_flag;
+  const resultLabel = teamGoals === opponentGoals ? 'E' : Number(teamGoals) > Number(opponentGoals) ? 'G' : 'P';
+  const resultClass = resultLabel === 'G' ? 'bg-emerald-100 text-pitch' : resultLabel === 'E' ? 'bg-amber-100 text-amber-700' : 'bg-red-50 text-triondaRed';
+
+  return (
+    <div className="rounded-md bg-white px-2.5 py-2 text-xs shadow-sm shadow-slate-200/50">
+      <div className="flex items-center justify-between gap-2">
+        <span className={`shrink-0 rounded-full px-2 py-0.5 font-black ${resultClass}`}>{resultLabel}</span>
+        <b className="shrink-0 text-sm text-slate-950">{teamGoals} - {opponentGoals}</b>
+      </div>
+      <div className="mt-1 flex min-w-0 items-center gap-1.5 text-slate-500">
+        <span className="shrink-0 font-bold">vs</span>
+        <img src={flagUrl(opponentFlag)} alt="" className="h-3.5 w-5 rounded-sm object-cover shadow-sm" />
+        <span className="truncate font-bold">{opponentName}</span>
+      </div>
     </div>
   );
 }
