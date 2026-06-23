@@ -777,7 +777,8 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     .filter((match) => localDateKey(match.kickoff_utc) === pickDate);
   const resultMatches = matches
     .filter((match) => localDateKey(match.kickoff_utc) === resultDate);
-  const missingResultMatches = matches.filter((match) => new Date(match.kickoff_utc).getTime() <= Date.now() && (match.home_goals === null || match.away_goals === null));
+  const matchFinishedGraceMs = 2 * 60 * 60 * 1000;
+  const missingResultMatches = matches.filter((match) => new Date(match.kickoff_utc).getTime() + matchFinishedGraceMs <= Date.now() && (match.home_goals === null || match.away_goals === null));
   const missingResultDays = Array.from(new Set(missingResultMatches.map((match) => localDateKey(match.kickoff_utc))));
 
   function goToMissingResults(day: string) {
@@ -813,7 +814,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-black text-triondaRed">Resultados pendientes</h3>
-            <p className="mt-1 text-sm font-bold leading-5 text-red-700">Faltan {missingResultMatches.length} partido{missingResultMatches.length === 1 ? '' : 's'} ya iniciado{missingResultMatches.length === 1 ? '' : 's'} por capturar.</p>
+            <p className="mt-1 text-sm font-bold leading-5 text-red-700">Faltan {missingResultMatches.length} partido{missingResultMatches.length === 1 ? '' : 's'} ya terminado{missingResultMatches.length === 1 ? '' : 's'} por capturar.</p>
           </div>
           <button onClick={() => goToMissingResults(missingResultDays[0])} className="shrink-0 rounded-lg bg-triondaRed px-3 py-2 text-xs font-black text-white">Revisar</button>
         </div>
