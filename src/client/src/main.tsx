@@ -116,6 +116,18 @@ function pickPoints(pick: Pick | undefined, match: Match) {
   return 0;
 }
 
+function matchRoundLabel(match?: Match) {
+  if (!match) return '';
+  if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
+  return `Grupo ${match.grp}`;
+}
+
+function dayRoundLabel(match?: Match) {
+  if (!match) return '';
+  if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
+  return `Jornada ${match.jornada}`;
+}
+
 function Login({ onDone }: { onDone: () => void }) {
   const [nombre, setNombre] = useState('');
   const [anio, setAnio] = useState('');
@@ -324,7 +336,7 @@ function FillView({ matches, picks, setPicks, showStats, showMatchPicks, showPic
         <div className="min-w-0 px-3 text-center">
           <h2 className="text-xl font-black capitalize leading-6 text-slate-950 sm:text-3xl">{days[index] ? localWeekday(dayMatches[0].kickoff_utc) : ''}</h2>
           <div className="text-base font-black capitalize leading-5 text-slate-500 sm:text-xl">{days[index] ? localDateLabel(dayMatches[0].kickoff_utc) : ''}</div>
-          <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-pitch">Jornada {dayMatches[0]?.jornada} · {dayMatches.length} partidos</p>
+          <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-pitch">{dayRoundLabel(dayMatches[0])} · {dayMatches.length} partidos</p>
         </div>
         <button className="icon-btn" disabled={index === days.length - 1} onClick={() => setIndex(index + 1)}><ChevronRight /></button>
       </div>
@@ -344,7 +356,7 @@ function MatchCard({ match, allMatches = [], pick, setScore, forceOpen = false, 
   return (
     <article className="rounded-lg bg-white border border-slate-200 shadow-md shadow-slate-200/60">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-        <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Grupo {match.grp} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</span>
+        <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{matchRoundLabel(match)} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</span>
         {saving ? <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-black text-pitch">Guardando</span> : locked ? <span className="flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-black text-triondaRed"><Lock size={14} /> Cerrado</span> : null}
       </div>
       <div className="grid grid-cols-2 gap-3 p-4">
@@ -720,7 +732,7 @@ function MatchNavContent({ match, compact = false }: { match: Match; compact?: b
   const hasResult = match.home_goals !== null && match.away_goals !== null;
   return <div className="min-w-0 text-center">
     <div className={`truncate font-black uppercase text-slate-400 ${compact ? 'text-[10px] tracking-[0.12em]' : 'text-[10px] tracking-[0.14em]'}`}>
-      Grupo {match.grp} · {localDateLabel(match.kickoff_utc)} · {localTime(match.kickoff_utc)}
+      {matchRoundLabel(match)} · {localDateLabel(match.kickoff_utc)} · {localTime(match.kickoff_utc)}
     </div>
     <div className={`mt-2 grid min-w-0 grid-cols-[minmax(0,1fr)_54px_minmax(0,1fr)] items-center gap-2 ${compact ? 'text-sm' : 'text-[13px] min-[380px]:text-sm sm:text-base'}`}>
       <div className="min-w-0 text-center">
@@ -998,7 +1010,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
           const dirty = p.home_goals !== match.home_goals || p.away_goals !== match.away_goals;
           const canSave = p.home_goals !== null && p.away_goals !== null;
           return <article key={match.id} className="rounded-lg bg-white p-3 border border-slate-200 shadow-md shadow-slate-200/60">
-            <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Grupo {match.grp} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</div>
+            <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{matchRoundLabel(match)} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</div>
             <div className="grid grid-cols-2 gap-3">
               <div className="min-w-0 text-center">
                 <img src={flagUrl(match.home_flag)} alt="" className="mx-auto h-8 w-12 object-contain" />
