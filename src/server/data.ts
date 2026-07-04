@@ -105,6 +105,14 @@ R,4,SUI,ALG,2026-07-02 21:00
 R,4,AUS,EGY,2026-07-03 12:00
 R,4,ARG,CPV,2026-07-03 16:00
 R,4,COL,GHA,2026-07-03 19:30
+O,5,CAN,MAR,2026-07-04 11:00
+O,5,PAR,FRA,2026-07-04 15:00
+O,5,BRA,NOR,2026-07-05 14:00
+O,5,MEX,ENG,2026-07-05 18:00
+O,5,POR,ESP,2026-07-06 13:00
+O,5,USA,BEL,2026-07-06 18:00
+O,5,ARG,EGY,2026-07-07 10:00
+O,5,SUI,COL,2026-07-07 14:00
 `.trim().split('\n').map((line) => {
   const [grp, jornada, home, away, cdmx] = line.split(',');
   return { grp, jornada: Number(jornada), home, away, cdmx };

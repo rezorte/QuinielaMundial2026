@@ -119,12 +119,14 @@ function pickPoints(pick: Pick | undefined, match: Match) {
 function matchRoundLabel(match?: Match) {
   if (!match) return '';
   if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
+  if (match.grp === 'O' && match.jornada === 5) return 'Ronda de 16';
   return `Grupo ${match.grp}`;
 }
 
 function dayRoundLabel(match?: Match) {
   if (!match) return '';
   if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
+  if (match.grp === 'O' && match.jornada === 5) return 'Ronda de 16';
   return `Jornada ${match.jornada}`;
 }
 
