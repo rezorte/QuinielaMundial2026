@@ -123,6 +123,13 @@ function matchRoundLabel(match?: Match) {
   return `Grupo ${match.grp}`;
 }
 
+function matchStageLabel(match?: Match) {
+  if (!match) return '';
+  if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
+  if (match.grp === 'O' && match.jornada === 5) return 'Ronda de 16';
+  return `Jornada ${match.jornada} · Grupo ${match.grp}`;
+}
+
 function dayRoundLabel(match?: Match) {
   if (!match) return '';
   if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
@@ -460,8 +467,7 @@ function recentTeamResults(teamCode: string, currentMatch: Match, matches: Match
     .filter((match) => match.home_goals !== null && match.away_goals !== null)
     .filter((match) => new Date(match.kickoff_utc).getTime() < currentKickoff)
     .filter((match) => match.home_code === teamCode || match.away_code === teamCode)
-    .sort((a, b) => new Date(b.kickoff_utc).getTime() - new Date(a.kickoff_utc).getTime())
-    .slice(0, 3);
+    .sort((a, b) => new Date(b.kickoff_utc).getTime() - new Date(a.kickoff_utc).getTime());
 }
 
 function RecentResultsComparison({ match, homeResults, awayResults }: { match: Match; homeResults: Match[]; awayResults: Match[] }) {
@@ -513,6 +519,7 @@ function RecentResultRow({ teamCode, result }: { teamCode: string; result: Match
         <img src={flagUrl(opponentFlag)} alt="" className="h-3.5 w-5 rounded-sm object-cover shadow-sm" />
         <span className="truncate font-bold">{opponentName}</span>
       </div>
+      <div className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{matchStageLabel(result)}</div>
     </div>
   );
 }
