@@ -56,6 +56,16 @@ type MatchStats = {
     verified_at: string | null;
   } | null;
 };
+type TeamTournamentSummaryData = {
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  form: Array<'W' | 'D' | 'L'>;
+  avgFor: string;
+  avgAgainst: string;
+};
 
 const api = {
   token: () => localStorage.getItem('qm_token') || '',
@@ -270,7 +280,7 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50 px-5 pb-24">
       <Brand player={player} onEditAlias={() => { setAliasDraft(player.alias); setAliasOpen(true); }} onSwitchUser={switchUser} />
-      {tab === 'fill' && <FillView matches={matches} picks={picks} setPicks={setPicks} showStats={settings.show_team_stats} showMatchPicks={settings.show_match_picks} showPickScores={settings.show_pick_scores} />}
+      {tab === 'fill' && <FillView matches={matches} picks={picks} setPicks={setPicks} standings={standings} player={player} showStats={settings.show_team_stats} showMatchPicks={settings.show_match_picks} showPickScores={settings.show_pick_scores} />}
       {tab === 'table' && <TableView standings={standings} matches={matches} player={player} />}
       {tab === 'admin' && <AdminView matches={matches} reload={load} />}
       {aliasOpen && <div className="fixed inset-0 z-40 flex items-end bg-pitch/30 p-4">
@@ -311,7 +321,7 @@ function defaultDayIndex(days: string[]) {
   return next >= 0 ? next : days.length - 1;
 }
 
-function FillView({ matches, picks, setPicks, showStats, showMatchPicks, showPickScores }: { matches: Match[]; picks: Record<string, Pick>; setPicks: (p: Record<string, Pick>) => void; showStats: boolean; showMatchPicks: boolean; showPickScores: boolean }) {
+function FillView({ matches, picks, setPicks, standings, player, showStats, showMatchPicks, showPickScores }: { matches: Match[]; picks: Record<string, Pick>; setPicks: (p: Record<string, Pick>) => void; standings: Standing[]; player: Player; showStats: boolean; showMatchPicks: boolean; showPickScores: boolean }) {
   const days = Array.from(new Set(matches.map((m) => localDateKey(m.kickoff_utc))));
   const [index, setIndex] = useState(0);
   const dayMatches = matches.filter((m) => localDateKey(m.kickoff_utc) === days[index]);
@@ -350,7 +360,7 @@ function FillView({ matches, picks, setPicks, showStats, showMatchPicks, showPic
         <button className="icon-btn" disabled={index === days.length - 1} onClick={() => setIndex(index + 1)}><ChevronRight /></button>
       </div>
       <div className="space-y-4">
-        {dayMatches.map((match) => <MatchCard key={match.id} match={match} allMatches={matches} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} showStats={showStats} showMatchPicks={showMatchPicks} showPickScores={showPickScores} />)}
+        {dayMatches.map((match) => <MatchCard key={match.id} match={match} allMatches={matches} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} standings={standings} player={player} showStats={showStats} showMatchPicks={showMatchPicks} showPickScores={showPickScores} />)}
       </div>
       <div className={`fixed bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full px-4 py-2 text-xs font-black shadow-sm transition-all ${isSaving ? 'bg-pitch text-white opacity-100' : savedPulse ? 'bg-slate-100 text-pitch opacity-100' : 'pointer-events-none opacity-0'}`}>
         {isSaving ? 'Guardando...' : 'Guardado'}
@@ -359,7 +369,7 @@ function FillView({ matches, picks, setPicks, showStats, showMatchPicks, showPic
   );
 }
 
-function MatchCard({ match, allMatches = [], pick, setScore, forceOpen = false, saving = false, showStats = false, showMatchPicks = false, showPickScores = false }: { match: Match; allMatches?: Match[]; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean; saving?: boolean; showStats?: boolean; showMatchPicks?: boolean; showPickScores?: boolean }) {
+function MatchCard({ match, allMatches = [], pick, setScore, forceOpen = false, saving = false, standings = [], player, showStats = false, showMatchPicks = false, showPickScores = false }: { match: Match; allMatches?: Match[]; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean; saving?: boolean; standings?: Standing[]; player?: Player; showStats?: boolean; showMatchPicks?: boolean; showPickScores?: boolean }) {
   const locked = Boolean(match.locked) && !forceOpen;
   const points = pickPoints(pick, match);
   return (
@@ -388,13 +398,13 @@ function MatchCard({ match, allMatches = [], pick, setScore, forceOpen = false, 
           Obtuviste: <span className="font-black text-slate-950">{points} pts</span>
         </span>
       </div>}
-      {showMatchPicks && <MatchPicksPanel match={match} />}
+      {showMatchPicks && <MatchPicksPanel match={match} standings={standings} player={player} />}
       {showStats && <StatsPanel match={match} allMatches={allMatches} />}
     </article>
   );
 }
 
-function MatchPicksPanel({ match }: { match: Match }) {
+function MatchPicksPanel({ match, standings, player }: { match: Match; standings: Standing[]; player?: Player }) {
   const [open, setOpen] = useState(false);
   const [picks, setPicks] = useState<MatchPick[]>([]);
 
@@ -414,14 +424,165 @@ function MatchPicksPanel({ match }: { match: Match }) {
       </button>
       {open && <div className="mt-2 overflow-hidden rounded-lg border border-slate-100">
         {picks.length === 0 && <div className="p-3 text-center text-sm font-bold text-slate-400">Todavia no hay picks.</div>}
+        {picks.length > 0 && <FamilyTrendSummary match={match} picks={picks} standings={standings} player={player} />}
         {picks.map((row) => <div key={row.player_id} className="grid grid-cols-[minmax(0,1fr)_70px_52px] items-center gap-2 border-t border-slate-100 px-3 py-2 first:border-t-0">
-          <b className="truncate text-sm">{row.alias}</b>
+          <div className="min-w-0">
+            <b className="block truncate text-sm">{row.alias}</b>
+            <PickBadges pick={row} picks={picks} match={match} />
+          </div>
           <span className="text-right text-sm font-black">{row.home_goals} - {row.away_goals}</span>
           <span className="rounded-full bg-slate-100 px-2 py-1 text-center text-xs font-black text-pitch">{row.points}</span>
         </div>)}
       </div>}
     </div>
   );
+}
+
+function FamilyTrendSummary({ match, picks, standings, player }: { match: Match; picks: MatchPick[]; standings: Standing[]; player?: Player }) {
+  const trend = familyTrend(match, picks);
+  const drama = familyDrama(match, picks, standings, player);
+  return (
+    <div className="border-b border-slate-100 bg-slate-50 p-3">
+      <div className="grid grid-cols-3 gap-2">
+        <TrendPill label={match.home_name} value={trend.homePercent} active={trend.leader === 'home'} />
+        <TrendPill label="Empate" value={trend.drawPercent} active={trend.leader === 'draw'} />
+        <TrendPill label={match.away_name} value={trend.awayPercent} active={trend.leader === 'away'} />
+      </div>
+      <div className="mt-3 grid gap-2 text-xs font-bold text-slate-600 min-[520px]:grid-cols-3">
+        <div className="rounded-md bg-white px-2.5 py-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Marcador más repetido</span>
+          <b className="mt-1 block text-sm text-slate-950">{trend.commonScore}</b>
+        </div>
+        <div className="rounded-md bg-white px-2.5 py-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Promedio esperado</span>
+          <b className="mt-1 block text-sm text-slate-950">{trend.averageScore}</b>
+        </div>
+        <div className="rounded-md bg-white px-2.5 py-2">
+          <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Lectura familiar</span>
+          <b className="mt-1 block text-sm text-slate-950">{trend.reading}</b>
+        </div>
+      </div>
+      {(drama.potentialRank || drama.keyMatch || drama.directRival) && <div className="mt-3 grid gap-2 text-xs font-bold text-slate-600 min-[520px]:grid-cols-3">
+        {drama.potentialRank && <DramaCard label="Tu escenario" text={drama.potentialRank} />}
+        {drama.keyMatch && <DramaCard label="Partido clave" text={drama.keyMatch} />}
+        {drama.directRival && <DramaCard label="Rival directo" text={drama.directRival} />}
+      </div>}
+    </div>
+  );
+}
+
+function DramaCard({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white px-2.5 py-2 shadow-sm shadow-slate-200/40">
+      <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{label}</span>
+      <b className="mt-1 block text-sm leading-5 text-slate-950">{text}</b>
+    </div>
+  );
+}
+
+function TrendPill({ label, value, active }: { label: string; value: number; active: boolean }) {
+  return (
+    <div className={`min-w-0 rounded-md px-2 py-2 text-center ${active ? 'bg-white shadow-sm shadow-slate-200/70' : 'bg-white/60'}`}>
+      <b className={`block text-lg leading-5 ${active ? 'text-pitch' : 'text-slate-500'}`}>{value}%</b>
+      <span className="mt-1 block truncate text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{label}</span>
+    </div>
+  );
+}
+
+function familyTrend(match: Match, picks: MatchPick[]) {
+  const total = Math.max(1, picks.length);
+  const homeCount = picks.filter((pick) => outcome(pick.home_goals, pick.away_goals) === 'H').length;
+  const drawCount = picks.filter((pick) => outcome(pick.home_goals, pick.away_goals) === 'D').length;
+  const awayCount = picks.filter((pick) => outcome(pick.home_goals, pick.away_goals) === 'A').length;
+  const counts = [
+    { key: 'home' as const, count: homeCount, name: match.home_name },
+    { key: 'draw' as const, count: drawCount, name: 'Empate' },
+    { key: 'away' as const, count: awayCount, name: match.away_name }
+  ].sort((a, b) => b.count - a.count);
+  const scoreCounts = new Map<string, number>();
+  picks.forEach((pick) => {
+    const key = `${pick.home_goals}-${pick.away_goals}`;
+    scoreCounts.set(key, (scoreCounts.get(key) || 0) + 1);
+  });
+  const common = Array.from(scoreCounts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  const avgHome = picks.reduce((sum, pick) => sum + pick.home_goals, 0) / total;
+  const avgAway = picks.reduce((sum, pick) => sum + pick.away_goals, 0) / total;
+  const leaderPercent = Math.round((counts[0].count / total) * 100);
+  const secondPercent = Math.round((counts[1].count / total) * 100);
+  const reading = leaderPercent >= 65 ? `Mayoría con ${counts[0].name}` : Math.abs(leaderPercent - secondPercent) <= 12 ? 'Partido dividido' : `Ligera ventaja ${counts[0].name}`;
+
+  return {
+    homePercent: Math.round((homeCount / total) * 100),
+    drawPercent: Math.round((drawCount / total) * 100),
+    awayPercent: Math.round((awayCount / total) * 100),
+    leader: counts[0].key,
+    leaderPercent,
+    commonScore: common ? `${common[0].replace('-', ' - ')} (${common[1]})` : '-',
+    averageScore: `${avgHome.toFixed(1)} - ${avgAway.toFixed(1)}`,
+    reading
+  };
+}
+
+function familyDrama(match: Match, picks: MatchPick[], standings: Standing[], player?: Player) {
+  const currentStanding = player ? standings.find((row) => row.player_id === player.id) : undefined;
+  const currentPick = player ? picks.find((pick) => pick.player_id === player.id) : undefined;
+  const hasResult = match.home_goals !== null && match.away_goals !== null;
+  const potentialRank = currentStanding && !hasResult
+    ? `Si aciertas exacto, podrías llegar hasta #${potentialRankWithExact(currentStanding, standings)}`
+    : '';
+  const keyMatch = keyMatchLabel(picks, standings);
+  const directRival = currentStanding && currentPick ? directRivalLabel(currentStanding, currentPick, picks, standings) : '';
+  return { potentialRank, keyMatch, directRival };
+}
+
+function potentialRankWithExact(current: Standing, standings: Standing[]) {
+  const maxPoints = Number(current.points) + 3;
+  return standings.filter((row) => row.player_id !== current.player_id && Number(row.points) > maxPoints).length + 1;
+}
+
+function keyMatchLabel(picks: MatchPick[], standings: Standing[]) {
+  const topIds = new Set(standings.slice(0, 5).map((row) => row.player_id));
+  const topPicks = picks.filter((pick) => topIds.has(pick.player_id));
+  if (topPicks.length < 2) return '';
+  const outcomes = new Set(topPicks.map(pickOutcomeKey));
+  if (outcomes.size >= 3) return 'Divide completamente al top 5';
+  if (outcomes.size === 2) return 'Puede mover posiciones arriba';
+  const scores = new Set(topPicks.map((pick) => `${pick.home_goals}-${pick.away_goals}`));
+  return scores.size >= 3 ? 'Top 5 trae marcadores distintos' : '';
+}
+
+function directRivalLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[]) {
+  const index = standings.findIndex((row) => row.player_id === current.player_id);
+  const rivals = [standings[index - 1], standings[index + 1]].filter(Boolean) as Standing[];
+  const rival = rivals
+    .map((row) => ({ standing: row, pick: picks.find((item) => item.player_id === row.player_id) }))
+    .find(({ pick }) => pick && (pick.home_goals !== currentPick.home_goals || pick.away_goals !== currentPick.away_goals));
+  if (!rival?.pick) return '';
+  return `${rival.standing.alias}: ${rival.pick.home_goals}-${rival.pick.away_goals} vs tú ${currentPick.home_goals}-${currentPick.away_goals}`;
+}
+
+function pickOutcomeKey(pick: Pick | MatchPick) {
+  const result = outcome(pick.home_goals, pick.away_goals);
+  if (result === 'H') return 'home';
+  if (result === 'A') return 'away';
+  return 'draw';
+}
+
+function PickBadges({ pick, picks, match }: { pick: MatchPick; picks: MatchPick[]; match: Match }) {
+  const trend = familyTrend(match, picks);
+  const unique = isUniquePick(pick, picks);
+  const brave = trend.leaderPercent >= 50 && pickOutcomeKey(pick) !== trend.leader;
+  if (!unique && !brave) return null;
+  return (
+    <div className="mt-0.5 flex flex-wrap gap-1">
+      {unique && <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">Único</span>}
+      {brave && <span className="inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700">Valiente</span>}
+    </div>
+  );
+}
+
+function isUniquePick(pick: MatchPick, picks: MatchPick[]) {
+  return picks.filter((row) => row.home_goals === pick.home_goals && row.away_goals === pick.away_goals).length === 1;
 }
 
 function StatsPanel({ match, allMatches }: { match: Match; allMatches: Match[] }) {
@@ -482,6 +643,7 @@ function RecentResultsComparison({ match, homeResults, awayResults }: { match: M
 }
 
 function RecentTeamResults({ teamCode, teamName, teamFlag, results }: { teamCode: string; teamName: string; teamFlag: string; results: Match[] }) {
+  const summary = teamTournamentSummary(teamCode, results);
   return (
     <section className="min-w-0 p-3">
       <div className="flex items-center gap-2">
@@ -491,12 +653,56 @@ function RecentTeamResults({ teamCode, teamName, teamFlag, results }: { teamCode
           <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Últimos resultados</p>
         </div>
       </div>
+      <TeamTournamentSummary summary={summary} />
       <div className="mt-3 space-y-2">
         {results.length === 0 && <div className="rounded-md bg-white px-2.5 py-2 text-xs font-bold leading-5 text-slate-400">Sin resultados registrados</div>}
         {results.map((result) => <RecentResultRow key={result.id} teamCode={teamCode} result={result} />)}
       </div>
     </section>
   );
+}
+
+function TeamTournamentSummary({ summary }: { summary: TeamTournamentSummaryData }) {
+  const recentFirst = [...summary.form].reverse();
+  return (
+    <div className="mt-3 rounded-md bg-white px-2.5 py-2 shadow-sm shadow-slate-200/50">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex gap-1" aria-label="Forma del equipo, más reciente primero">
+          {recentFirst.length ? recentFirst.map((result, index) => <span key={index} className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${result === 'W' ? 'bg-pitch text-white' : result === 'D' ? 'bg-slate-300 text-slate-700' : 'bg-triondaRed text-white'}`}>{result === 'W' ? 'G' : result === 'D' ? 'E' : 'P'}</span>) : <span className="text-xs font-bold text-slate-400">Sin forma</span>}
+        </div>
+        <b className="shrink-0 text-xs text-slate-950">{summary.wins}G {summary.draws}E {summary.losses}P</b>
+      </div>
+      <div className="mt-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Más reciente primero</div>
+      <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-bold text-slate-500">
+        <span>GF/GC <b className="text-slate-950">{summary.goalsFor}/{summary.goalsAgainst}</b></span>
+        <span>Prom. <b className="text-slate-950">{summary.avgFor} / {summary.avgAgainst}</b></span>
+      </div>
+    </div>
+  );
+}
+
+function teamTournamentSummary(teamCode: string, results: Match[]) {
+  const chronological = [...results].sort((a, b) => new Date(a.kickoff_utc).getTime() - new Date(b.kickoff_utc).getTime());
+  const totals = chronological.reduce<Omit<TeamTournamentSummaryData, 'avgFor' | 'avgAgainst'>>((summary, match) => {
+    const isHome = match.home_code === teamCode;
+    const goalsFor = Number(isHome ? match.home_goals : match.away_goals);
+    const goalsAgainst = Number(isHome ? match.away_goals : match.home_goals);
+    const result: 'W' | 'D' | 'L' = goalsFor === goalsAgainst ? 'D' : goalsFor > goalsAgainst ? 'W' : 'L';
+    return {
+      wins: summary.wins + (result === 'W' ? 1 : 0),
+      draws: summary.draws + (result === 'D' ? 1 : 0),
+      losses: summary.losses + (result === 'L' ? 1 : 0),
+      goalsFor: summary.goalsFor + goalsFor,
+      goalsAgainst: summary.goalsAgainst + goalsAgainst,
+      form: [...summary.form, result]
+    };
+  }, { wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, form: [] as Array<'W' | 'D' | 'L'> });
+  const played = Math.max(1, chronological.length);
+  return {
+    ...totals,
+    avgFor: (totals.goalsFor / played).toFixed(1),
+    avgAgainst: (totals.goalsAgainst / played).toFixed(1)
+  };
 }
 
 function RecentResultRow({ teamCode, result }: { teamCode: string; result: Match }) {
