@@ -22,7 +22,7 @@ type Pick = { match_id: string; home_goals: number; away_goals: number };
 type ResultDraft = { match_id: string; home_goals: number | null; away_goals: number | null };
 type Player = { id: string; alias: string; display_name?: string; birth_year?: string; active?: boolean | 0 | 1 };
 type Standing = { rank: number; rank_delta: number; player_id: string; alias: string; points: number; exacts: number; results: number };
-type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number };
+type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number; rank?: number | null; rank_delta?: number };
 type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean; show_match_picks: boolean; show_pick_scores: boolean };
 type TeamStats = {
   team_code: string;
@@ -363,7 +363,7 @@ function FillView({ matches, picks, setPicks, standings, player, showStats, show
       </div>
       <div className="mb-4 grid gap-2 min-[520px]:grid-cols-2">
         <RoundStatusCard label={missingOpenPicks ? 'Picks faltantes' : 'Picks listos'} value={missingOpenPicks ? `Te faltan ${missingOpenPicks}` : 'Todo listo'} tone={missingOpenPicks ? 'warn' : 'ok'} />
-        <RoundStatusCard label="Tu historial reciente" value={personal} tone="neutral" />
+        <PersonalHistoryCard history={personal} />
       </div>
       <div className="space-y-4">
         {dayMatches.map((match) => <MatchCard key={match.id} match={match} allMatches={matches} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} standings={standings} player={player} showStats={showStats} showMatchPicks={showMatchPicks} showPickScores={showPickScores} />)}
@@ -385,12 +385,43 @@ function RoundStatusCard({ label, value, tone }: { label: string; value: string;
   );
 }
 
+function PersonalHistoryCard({ history }: { history: ReturnType<typeof personalHistory> }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm shadow-slate-200/50">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Tu historial reciente</span>
+          <b className="mt-1 block text-sm leading-5 text-slate-950">{history.played ? `Últimos ${history.played}` : 'Pendiente de resultados'}</b>
+        </div>
+        {history.form.length > 0 && <div className="flex shrink-0 gap-1 pt-1" aria-label="Puntos recientes">
+          {history.form.map((points, index) => <span key={index} className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-black ${points === 3 ? 'bg-emerald-100 text-pitch' : points === 1 ? 'bg-slate-100 text-slate-600' : 'bg-red-50 text-triondaRed'}`}>{points}</span>)}
+        </div>}
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        <MiniMetric label="Exactos" value={String(history.exacts)} tone="pitch" />
+        <MiniMetric label="Resultados" value={String(history.results)} tone="slate" />
+        <MiniMetric label="Favorito" value={history.favorite || '-'} tone="gold" />
+      </div>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value, tone }: { label: string; value: string; tone: 'pitch' | 'slate' | 'gold' }) {
+  const color = tone === 'pitch' ? 'text-pitch' : tone === 'gold' ? 'text-triondaGold' : 'text-slate-700';
+  return (
+    <div className="min-w-0 rounded-md bg-slate-50 px-2 py-1.5 text-center">
+      <span className="block truncate text-[9px] font-black uppercase tracking-[0.08em] text-slate-400">{label}</span>
+      <b className={`mt-0.5 block truncate text-sm leading-5 ${color}`}>{value}</b>
+    </div>
+  );
+}
+
 function personalHistory(matches: Match[], picks: Record<string, Pick>) {
   const scored = matches
     .filter((match) => match.home_goals !== null && match.away_goals !== null && picks[match.id])
     .sort((a, b) => new Date(b.kickoff_utc).getTime() - new Date(a.kickoff_utc).getTime());
   const recent = scored.slice(0, 5);
-  if (!recent.length) return 'Pendiente de resultados';
+  if (!recent.length) return { played: 0, exacts: 0, results: 0, favorite: '', form: [] as number[] };
   const exacts = recent.filter((match) => pickPoints(picks[match.id], match) === 3).length;
   const results = recent.filter((match) => {
     const points = pickPoints(picks[match.id], match);
@@ -402,7 +433,13 @@ function personalHistory(matches: Match[], picks: Record<string, Pick>) {
     scoreCounts.set(key, (scoreCounts.get(key) || 0) + 1);
   });
   const favorite = Array.from(scoreCounts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0].replace('-', '-');
-  return `Últimos ${recent.length}: ${exacts} exactos, ${results} resultados${favorite ? ` · favorito ${favorite}` : ''}`;
+  return {
+    played: recent.length,
+    exacts,
+    results,
+    favorite: favorite || '',
+    form: recent.map((match) => pickPoints(picks[match.id], match) ?? 0)
+  };
 }
 
 function MatchCard({ match, allMatches = [], pick, setScore, forceOpen = false, saving = false, standings = [], player, showStats = false, showMatchPicks = false, showPickScores = false }: { match: Match; allMatches?: Match[]; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean; saving?: boolean; standings?: Standing[]; player?: Player; showStats?: boolean; showMatchPicks?: boolean; showPickScores?: boolean }) {
@@ -434,13 +471,14 @@ function MatchCard({ match, allMatches = [], pick, setScore, forceOpen = false, 
           Obtuviste: <span className="font-black text-slate-950">{points} pts</span>
         </span>
       </div>}
-      {showMatchPicks && <MatchPicksPanel match={match} standings={standings} player={player} />}
+      {showMatchPicks && <PlayerPlayPanel match={match} standings={standings} player={player} />}
+      {showMatchPicks && <MatchPicksPanel match={match} />}
       {showStats && <StatsPanel match={match} allMatches={allMatches} />}
     </article>
   );
 }
 
-function MatchPicksPanel({ match, standings, player }: { match: Match; standings: Standing[]; player?: Player }) {
+function MatchPicksPanel({ match }: { match: Match }) {
   const [open, setOpen] = useState(false);
   const [picks, setPicks] = useState<MatchPick[]>([]);
 
@@ -459,13 +497,16 @@ function MatchPicksPanel({ match, standings, player }: { match: Match; standings
         Picks familiares
       </button>
       {open && <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-200/40">
-        {picks.length === 0 && <div className="p-3 text-center text-sm font-bold text-slate-400">Todavia no hay picks.</div>}
-        {picks.length > 0 && <FamilyTrendSummary match={match} picks={picks} standings={standings} player={player} />}
+        {picks.length === 0 && <div className="p-3 text-center text-sm font-bold text-slate-400">Todavía no hay picks.</div>}
+        {picks.length > 0 && <FamilyTrendSummary match={match} picks={picks} />}
         {picks.length > 0 && <div className="border-t border-slate-100">
           <div className="bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Lista familiar</div>
           {picks.map((row) => <div key={row.player_id} className="grid grid-cols-[minmax(0,1fr)_72px_50px] items-center gap-2 border-t border-slate-100 px-3 py-2 first:border-t-0">
             <div className="min-w-0">
-              <b className="block truncate text-sm">{row.alias}</b>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <b className="truncate text-sm">{row.alias}</b>
+                <RankMovement delta={row.rank_delta || 0} />
+              </div>
               <PickBadges pick={row} picks={picks} match={match} />
             </div>
             <span className="text-right text-sm font-black">{row.home_goals} - {row.away_goals}</span>
@@ -477,9 +518,65 @@ function MatchPicksPanel({ match, standings, player }: { match: Match; standings
   );
 }
 
-function FamilyTrendSummary({ match, picks, standings, player }: { match: Match; picks: MatchPick[]; standings: Standing[]; player?: Player }) {
+function PlayerPlayPanel({ match, standings, player }: { match: Match; standings: Standing[]; player?: Player }) {
+  const [open, setOpen] = useState(false);
+  const [picks, setPicks] = useState<MatchPick[]>([]);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next) {
+      const rows = await api.request<MatchPick[]>(`/api/matches/${match.id}/picks`);
+      setPicks(rows);
+    }
+  }
+
+  const drama = picks.length ? familyDrama(match, picks, standings, player) : null;
+  return (
+    <div className="border-t border-slate-100 px-4 pb-4">
+      <button onClick={toggle} className="mt-1 w-full rounded-lg bg-slate-100 px-3 py-2 text-left text-sm font-black text-pitch">
+        Tu jugada
+      </button>
+      {open && <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/40">
+        {!drama && <div className="text-center text-sm font-bold text-slate-400">Todavía no hay datos familiares para este partido.</div>}
+        {drama && <PlayerPlaySummary drama={drama} />}
+      </div>}
+    </div>
+  );
+}
+
+function PlayerPlaySummary({ drama }: { drama: ReturnType<typeof familyDrama> }) {
+  const items = [
+    drama.opportunity && { label: 'Ataque', text: drama.opportunity, tone: 'pitch' },
+    drama.defense && { label: 'Defensa', text: drama.defense, tone: 'red' },
+    drama.topThree && { label: 'Top 3', text: drama.topThree.text, tone: drama.topThree.tone },
+    drama.majority && { label: 'Mayoría', text: drama.majority, tone: 'slate' },
+    drama.radar && { label: 'Radar', text: drama.radar, tone: 'pitch' },
+    drama.keyMatch && { label: 'Clave', text: drama.keyMatch, tone: 'gold' },
+    drama.potentialRank && { label: 'Escenario', text: drama.potentialRank, tone: 'slate' }
+  ].filter(Boolean) as Array<{ label: string; text: string; tone: string }>;
+  return (
+    <div className="grid gap-2 min-[520px]:grid-cols-2">
+      {items.map((item) => <PlayChip key={`${item.label}-${item.text}`} {...item} />)}
+    </div>
+  );
+}
+
+function PlayChip({ label, text, tone }: { label: string; text: string; tone: string }) {
+  const dot = tone === 'pitch' ? 'bg-pitch' : tone === 'red' ? 'bg-triondaRed' : tone === 'gold' ? 'bg-triondaGold' : 'bg-slate-400';
+  return (
+    <div className="flex min-w-0 gap-2 rounded-md bg-slate-50 px-2.5 py-2">
+      <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
+      <div className="min-w-0">
+        <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{label}</span>
+        <b className="mt-0.5 block text-sm leading-5 text-slate-950">{text}</b>
+      </div>
+    </div>
+  );
+}
+
+function FamilyTrendSummary({ match, picks }: { match: Match; picks: MatchPick[] }) {
   const trend = familyTrend(match, picks);
-  const drama = familyDrama(match, picks, standings, player);
   return (
     <div className="bg-slate-50 p-3">
       <div className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Tendencia familiar</div>
@@ -488,7 +585,7 @@ function FamilyTrendSummary({ match, picks, standings, player }: { match: Match;
         <TrendPill label="Empate" value={trend.drawPercent} active={trend.leader === 'draw'} />
         <TrendPill label={match.away_name} value={trend.awayPercent} active={trend.leader === 'away'} />
       </div>
-      <div className="mt-3 grid gap-2 text-xs font-bold text-slate-600 min-[520px]:grid-cols-3">
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-slate-600">
         <div className="rounded-md bg-white px-2.5 py-2">
           <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Pick de la familia</span>
           <b className="mt-1 block text-sm text-slate-950">{trend.commonScore}</b>
@@ -497,33 +594,11 @@ function FamilyTrendSummary({ match, picks, standings, player }: { match: Match;
           <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Promedio esperado</span>
           <b className="mt-1 block text-sm text-slate-950">{trend.averageScore}</b>
         </div>
-        <div className="rounded-md bg-white px-2.5 py-2">
+        <div className="col-span-2 rounded-md bg-white px-2.5 py-2">
           <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Lectura familiar</span>
           <b className="mt-1 block text-sm text-slate-950">{trend.reading}</b>
         </div>
       </div>
-      {(drama.potentialRank || drama.keyMatch || drama.opportunity || drama.defense || drama.topThree || drama.leaderGap || drama.majority || drama.radar) && <div className="mt-3">
-        <div className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Tu jugada</div>
-        <div className="grid gap-2 text-xs font-bold text-slate-600 min-[520px]:grid-cols-2">
-        {drama.potentialRank && <DramaCard label="Tu escenario" text={drama.potentialRank} />}
-        {drama.topThree && <DramaCard label="Top 3" text={drama.topThree} />}
-        {drama.leaderGap && <DramaCard label="Líder" text={drama.leaderGap} />}
-        {drama.opportunity && <DramaCard label="Ataque" text={drama.opportunity} />}
-        {drama.defense && <DramaCard label="Defensa" text={drama.defense} />}
-        {drama.majority && <DramaCard label="Tú vs mayoría" text={drama.majority} />}
-        {drama.radar && <DramaCard label="Radar familiar" text={drama.radar} />}
-        {drama.keyMatch && <DramaCard label="Partido clave" text={drama.keyMatch} />}
-        </div>
-      </div>}
-    </div>
-  );
-}
-
-function DramaCard({ label, text }: { label: string; text: string }) {
-  return (
-    <div className="rounded-md border border-slate-200 bg-white px-2.5 py-2 shadow-sm shadow-slate-200/40">
-      <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{label}</span>
-      <b className="mt-1 block text-sm leading-5 text-slate-950">{text}</b>
     </div>
   );
 }
@@ -581,11 +656,10 @@ function familyDrama(match: Match, picks: MatchPick[], standings: Standing[], pl
     : '';
   const keyMatch = keyMatchLabel(picks, standings);
   const rivalContext = currentStanding && currentPick ? directRivalContext(currentStanding, currentPick, picks, standings) : { opportunity: '', defense: '' };
-  const topThree = currentStanding && !hasResult ? topThreeLabel(currentStanding, standings) : '';
-  const leaderGap = currentStanding ? leaderGapLabel(currentStanding, standings) : '';
+  const topThree = currentStanding && !hasResult ? topThreeSignal(currentStanding, standings) : null;
   const majority = currentPick ? majorityLabel(currentPick, trend, match) : '';
   const radar = radarLabel(picks, standings);
-  return { potentialRank, keyMatch, topThree, leaderGap, majority, radar, ...rivalContext };
+  return { potentialRank, keyMatch, topThree, majority, radar, ...rivalContext };
 }
 
 function potentialRankWithExact(current: Standing, standings: Standing[]) {
@@ -593,23 +667,17 @@ function potentialRankWithExact(current: Standing, standings: Standing[]) {
   return standings.filter((row) => row.player_id !== current.player_id && Number(row.points) > maxPoints).length + 1;
 }
 
-function topThreeLabel(current: Standing, standings: Standing[]) {
+function topThreeSignal(current: Standing, standings: Standing[]) {
   if (current.rank <= 3) {
-    const fourth = standings.find((row) => row.rank === 4);
-    return fourth ? `Estás en podio; ${fourth.alias} quiere meterse` : 'Estás en podio';
+    return { text: 'Estás dentro del podio', tone: 'pitch' };
   }
   const possibleRank = potentialRankWithExact(current, standings);
-  if (possibleRank <= 3) return 'Semáforo verde: exacto te mete al podio';
-  if (possibleRank <= 5) return 'Semáforo amarillo: exacto te deja cerca del podio';
-  return 'Semáforo rojo: necesitas más de un partido para podio';
-}
-
-function leaderGapLabel(current: Standing, standings: Standing[]) {
-  const leader = standings[0];
-  if (!leader) return '';
-  if (leader.player_id === current.player_id) return 'Vas liderando la tabla';
-  const gap = Number(leader.points) - Number(current.points);
-  return `Estás a ${gap} pts de ${leader.alias}`;
+  if (possibleRank <= 3) return { text: 'Exacto te mete al podio', tone: 'pitch' };
+  if (possibleRank <= 5) return { text: 'Exacto te deja cerca del podio', tone: 'gold' };
+  const third = standings.find((row) => row.rank === 3);
+  if (!third) return null;
+  const gap = Number(third.points) - Number(current.points);
+  return { text: `Estás a ${gap} pts del podio`, tone: 'red' };
 }
 
 function keyMatchLabel(picks: MatchPick[], standings: Standing[]) {
@@ -642,7 +710,7 @@ function radarLabel(picks: MatchPick[], standings: Standing[]) {
   const chasingPicks = picks.filter((pick) => chasingIds.has(pick.player_id));
   const chasingDifferent = chasingPicks.some((pick) => pickOutcomeKey(pick) !== pickOutcomeKey(topPicks[0]));
   if (chasingDifferent) return 'Los perseguidores se están arriesgando';
-  return 'Los líderes van alineados';
+  return 'El grupo de arriba va alineado';
 }
 
 function directRivalContext(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[]) {
@@ -1071,7 +1139,13 @@ function TableView({ standings, matches, player }: { standings: Standing[]; matc
         <div className="mt-3 overflow-hidden rounded-lg border border-slate-100">
           {matchPicks.length === 0 && <div className="p-4 text-center text-sm font-bold text-slate-400">Todavia no hay picks para este partido.</div>}
           {matchPicks.map((pick) => <div key={pick.player_id} className="grid grid-cols-[minmax(0,1fr)_76px_58px] items-center gap-2 border-t border-slate-100 px-3 py-3 first:border-t-0">
-            <b className="truncate">{pick.alias}</b>
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <b className="truncate">{pick.alias}</b>
+                <RankMovement delta={pick.rank_delta || 0} />
+              </div>
+              {pick.rank && <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Después: #{pick.rank}</span>}
+            </div>
             <span className="text-right text-lg font-black">{pick.home_goals} - {pick.away_goals}</span>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-center text-sm font-black text-pitch">{pick.points} pts</span>
           </div>)}

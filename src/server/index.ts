@@ -236,6 +236,37 @@ function rankStandingRows(rows: any[]) {
   });
 }
 
+async function standingRowsThroughMatch(match: { match_id: string; kickoff_utc: string }, includeMatch: boolean) {
+  const cutoffCondition = includeMatch
+    ? `(m.kickoff_utc < :cutoff_kickoff OR (m.kickoff_utc = :cutoff_kickoff AND m.id <= :cutoff_match_id))`
+    : `(m.kickoff_utc < :cutoff_kickoff OR (m.kickoff_utc = :cutoff_kickoff AND m.id < :cutoff_match_id))`;
+  const rows = await query<any>(`
+    SELECT
+      p.id player_id, p.alias,
+      COALESCE(SUM(CASE
+        WHEN NOT ${cutoffCondition} OR m.home_goals IS NULL OR m.away_goals IS NULL THEN 0
+        WHEN pk.home_goals = m.home_goals AND pk.away_goals = m.away_goals THEN 3
+        WHEN SIGN(pk.home_goals - pk.away_goals) = SIGN(m.home_goals - m.away_goals) THEN 1
+        ELSE 0
+      END), 0) points,
+      COALESCE(SUM(CASE
+        WHEN ${cutoffCondition} AND m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND pk.home_goals = m.home_goals AND pk.away_goals = m.away_goals THEN 1
+        ELSE 0
+      END), 0) exacts,
+      COALESCE(SUM(CASE
+        WHEN ${cutoffCondition} AND m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND SIGN(pk.home_goals - pk.away_goals) = SIGN(m.home_goals - m.away_goals) THEN 1
+        ELSE 0
+      END), 0) results
+    FROM players p
+    LEFT JOIN picks pk ON pk.player_id = p.id
+    LEFT JOIN matches m ON m.id = pk.match_id
+    WHERE p.active = 1
+    GROUP BY p.id, p.alias
+    ORDER BY points DESC, exacts DESC, results DESC, p.alias ASC
+  `, { cutoff_kickoff: match.kickoff_utc, cutoff_match_id: match.match_id });
+  return rankStandingRows(rows);
+}
+
 app.get('/api/standings', async (_req, res) => {
   const latest = await query<{ match_id: string | null; kickoff_utc: string | null }>(`
     SELECT id match_id, kickoff_utc
@@ -304,6 +335,11 @@ app.get('/api/standings', async (_req, res) => {
 });
 
 app.get('/api/matches/:matchId/picks', async (req, res) => {
+  const matchRows = await query<{ match_id: string; kickoff_utc: string; home_goals: number | null; away_goals: number | null }>(
+    `SELECT id match_id, kickoff_utc, home_goals, away_goals FROM matches WHERE id = :match_id LIMIT 1`,
+    { match_id: req.params.matchId }
+  );
+  const selectedMatch = matchRows[0] || null;
   const rows = await query<any>(
     `SELECT
       p.id player_id, p.alias,
@@ -317,12 +353,27 @@ app.get('/api/matches/:matchId/picks', async (req, res) => {
     { match_id: req.params.matchId }
   );
 
+  let historicalRanks = new Map<string, { rank: number; rank_delta: number }>();
+  if (selectedMatch?.home_goals !== null && selectedMatch?.away_goals !== null) {
+    const [afterRows, beforeRows] = await Promise.all([
+      standingRowsThroughMatch(selectedMatch, true),
+      standingRowsThroughMatch(selectedMatch, false)
+    ]);
+    const beforeRanks = new Map(beforeRows.map((row) => [row.player_id, row.rank]));
+    historicalRanks = new Map(afterRows.map((row) => [row.player_id, {
+      rank: row.rank,
+      rank_delta: (beforeRanks.get(row.player_id) || row.rank) - row.rank
+    }]));
+  }
+
   res.json(rows.map((row: any) => ({
     player_id: row.player_id,
     alias: row.alias,
     home_goals: row.home_goals,
     away_goals: row.away_goals,
-    points: scorePick(row.home_goals, row.away_goals, row.real_home_goals, row.real_away_goals).points
+    points: scorePick(row.home_goals, row.away_goals, row.real_home_goals, row.real_away_goals).points,
+    rank: historicalRanks.get(row.player_id)?.rank || null,
+    rank_delta: historicalRanks.get(row.player_id)?.rank_delta || 0
   })));
 });
 
