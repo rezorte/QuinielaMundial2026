@@ -665,20 +665,39 @@ function RecentTeamResults({ teamCode, teamName, teamFlag, results }: { teamCode
 function TeamTournamentSummary({ summary }: { summary: TeamTournamentSummaryData }) {
   const recentFirst = [...summary.form].reverse();
   return (
-    <div className="mt-3 rounded-md bg-white px-2.5 py-2 shadow-sm shadow-slate-200/50">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex gap-1" aria-label="Forma del equipo, más reciente primero">
-          {recentFirst.length ? recentFirst.map((result, index) => <span key={index} className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${result === 'W' ? 'bg-pitch text-white' : result === 'D' ? 'bg-slate-300 text-slate-700' : 'bg-triondaRed text-white'}`}>{result === 'W' ? 'G' : result === 'D' ? 'E' : 'P'}</span>) : <span className="text-xs font-bold text-slate-400">Sin forma</span>}
+    <div className="mt-3 rounded-md border border-slate-100 bg-white px-2.5 py-2 shadow-sm shadow-slate-200/50">
+      <div>
+        <div className="flex flex-wrap gap-1.5" aria-label="Forma del equipo, más reciente primero">
+          {recentFirst.length ? recentFirst.map((result, index) => <ResultBadge key={index} result={result} />) : <span className="text-xs font-bold text-slate-400">Sin forma</span>}
         </div>
-        <b className="shrink-0 text-xs text-slate-950">{summary.wins}G {summary.draws}E {summary.losses}P</b>
+        <div className="mt-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Más reciente primero</div>
       </div>
-      <div className="mt-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Más reciente primero</div>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-bold text-slate-500">
-        <span>GF/GC <b className="text-slate-950">{summary.goalsFor}/{summary.goalsAgainst}</b></span>
-        <span>Prom. <b className="text-slate-950">{summary.avgFor} / {summary.avgAgainst}</b></span>
+      <div className="mt-2 grid grid-cols-1 gap-1.5 min-[430px]:grid-cols-3">
+        <StatChip label="Récord" value={`${summary.wins}G ${summary.draws}E ${summary.losses}P`} />
+        <StatChip label="GF/GC" value={`${summary.goalsFor}/${summary.goalsAgainst}`} />
+        <StatChip label="Prom." value={`${summary.avgFor} / ${summary.avgAgainst}`} />
       </div>
     </div>
   );
+}
+
+function StatChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="min-w-0 rounded-md bg-slate-50 px-2 py-1.5">
+      <span className="block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{label}</span>
+      <b className="mt-0.5 block truncate text-[12px] leading-4 text-slate-950">{value}</b>
+    </span>
+  );
+}
+
+function ResultBadge({ result }: { result: 'W' | 'D' | 'L' }) {
+  const label = result === 'W' ? 'G' : result === 'D' ? 'E' : 'P';
+  const className = result === 'W'
+    ? 'bg-emerald-100 text-pitch'
+    : result === 'D'
+      ? 'bg-slate-100 text-slate-600'
+      : 'bg-red-50 text-triondaRed';
+  return <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-black ${className}`}>{label}</span>;
 }
 
 function teamTournamentSummary(teamCode: string, results: Match[]) {
@@ -712,7 +731,7 @@ function RecentResultRow({ teamCode, result }: { teamCode: string; result: Match
   const opponentName = isHome ? result.away_name : result.home_name;
   const opponentFlag = isHome ? result.away_flag : result.home_flag;
   const resultLabel = teamGoals === opponentGoals ? 'E' : Number(teamGoals) > Number(opponentGoals) ? 'G' : 'P';
-  const resultClass = resultLabel === 'G' ? 'bg-emerald-100 text-pitch' : resultLabel === 'E' ? 'bg-amber-100 text-amber-700' : 'bg-red-50 text-triondaRed';
+  const resultClass = resultLabel === 'G' ? 'bg-emerald-100 text-pitch' : resultLabel === 'E' ? 'bg-slate-100 text-slate-600' : 'bg-red-50 text-triondaRed';
 
   return (
     <div className="rounded-md bg-white px-2.5 py-2 text-xs shadow-sm shadow-slate-200/50">
