@@ -23,6 +23,7 @@ type ResultDraft = { match_id: string; home_goals: number | null; away_goals: nu
 type Player = { id: string; alias: string; display_name?: string; birth_year?: string; active?: boolean | 0 | 1 };
 type Standing = { rank: number; rank_delta: number; player_id: string; alias: string; points: number; exacts: number; results: number };
 type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number; rank?: number | null; rank_delta?: number };
+type PlayMessage = { text: string; pick?: MatchPick };
 type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean; show_match_picks: boolean; show_pick_scores: boolean };
 type TeamStats = {
   team_code: string;
@@ -459,13 +460,7 @@ function MatchCard({ match, allMatches = [], pick, setScore, forceOpen = false, 
         <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
           Resultado real:
         </span>
-        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-black text-slate-950">
-          <img src={flagUrl(match.home_flag)} alt="" className="h-4 w-6 rounded-sm object-cover shadow-sm" />
-          <span>{match.home_goals}</span>
-          <span className="text-slate-300">-</span>
-          <span>{match.away_goals}</span>
-          <img src={flagUrl(match.away_flag)} alt="" className="h-4 w-6 rounded-sm object-cover shadow-sm" />
-        </span>
+        <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={match.home_goals ?? '-'} awayGoals={match.away_goals ?? '-'} size="md" />
         <span className="hidden text-slate-300 min-[360px]:inline">·</span>
         <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
           Obtuviste: <span className="font-black text-slate-950">{points} pts</span>
@@ -501,7 +496,7 @@ function MatchPicksPanel({ match }: { match: Match }) {
         {picks.length > 0 && <FamilyTrendSummary match={match} picks={picks} />}
         {picks.length > 0 && <div className="border-t border-slate-100">
           <div className="bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Lista familiar</div>
-          {picks.map((row) => <div key={row.player_id} className="grid grid-cols-[minmax(0,1fr)_72px_50px] items-center gap-2 border-t border-slate-100 px-3 py-2 first:border-t-0">
+          {picks.map((row) => <div key={row.player_id} className="grid grid-cols-[minmax(0,1fr)_104px_50px] items-center gap-2 border-t border-slate-100 px-3 py-2 first:border-t-0">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-1.5">
                 <b className="truncate text-sm">{row.alias}</b>
@@ -509,7 +504,7 @@ function MatchPicksPanel({ match }: { match: Match }) {
               </div>
               <PickBadges pick={row} picks={picks} match={match} />
             </div>
-            <span className="text-right text-sm font-black">{row.home_goals} - {row.away_goals}</span>
+            <div className="justify-self-end"><FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={row.home_goals} awayGoals={row.away_goals} size="xs" /></div>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-center text-xs font-black text-pitch">{row.points}</span>
           </div>)}
         </div>}
@@ -539,38 +534,75 @@ function PlayerPlayPanel({ match, standings, player }: { match: Match; standings
       </button>
       {open && <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/40">
         {!drama && <div className="text-center text-sm font-bold text-slate-400">Todavía no hay datos familiares para este partido.</div>}
-        {drama && <PlayerPlaySummary drama={drama} />}
+        {drama && <PlayerPlaySummary drama={drama} match={match} />}
       </div>}
     </div>
   );
 }
 
-function PlayerPlaySummary({ drama }: { drama: ReturnType<typeof familyDrama> }) {
+function PlayerPlaySummary({ drama, match }: { drama: ReturnType<typeof familyDrama>; match: Match }) {
   const items = [
     drama.opportunity && { label: 'Ataque', text: drama.opportunity, tone: 'pitch' },
     drama.defense && { label: 'Defensa', text: drama.defense, tone: 'red' },
     drama.topThree && { label: 'Top 3', text: drama.topThree.text, tone: drama.topThree.tone },
-    drama.majority && { label: 'Mayoría', text: drama.majority, tone: 'slate' },
     drama.radar && { label: 'Radar', text: drama.radar, tone: 'pitch' },
     drama.keyMatch && { label: 'Clave', text: drama.keyMatch, tone: 'gold' },
     drama.potentialRank && { label: 'Escenario', text: drama.potentialRank, tone: 'slate' }
-  ].filter(Boolean) as Array<{ label: string; text: string; tone: string }>;
+  ].filter(Boolean) as Array<{ label: string; text: string | PlayMessage; tone: string }>;
   return (
     <div className="grid gap-2 min-[520px]:grid-cols-2">
-      {items.map((item) => <PlayChip key={`${item.label}-${item.text}`} {...item} />)}
+      {items.map((item) => <PlayChip key={`${item.label}-${messageText(item.text)}`} {...item} match={match} />)}
     </div>
   );
 }
 
-function PlayChip({ label, text, tone }: { label: string; text: string; tone: string }) {
-  const dot = tone === 'pitch' ? 'bg-pitch' : tone === 'red' ? 'bg-triondaRed' : tone === 'gold' ? 'bg-triondaGold' : 'bg-slate-400';
+function PlayChip({ label, text, tone, match }: { label: string; text: string | PlayMessage; tone: string; match: Match }) {
+  const toneClass = tone === 'pitch'
+    ? 'border-l-pitch bg-emerald-50/45'
+    : tone === 'red'
+      ? 'border-l-triondaRed bg-red-50/45'
+      : tone === 'gold'
+        ? 'border-l-triondaGold bg-amber-50/55'
+        : 'border-l-slate-300 bg-slate-50';
+  const labelClass = tone === 'pitch'
+    ? 'bg-white text-pitch'
+    : tone === 'red'
+      ? 'bg-white text-triondaRed'
+      : tone === 'gold'
+        ? 'bg-white text-amber-700'
+        : 'bg-white text-slate-500';
+  const message = typeof text === 'string' ? { text } : text;
   return (
-    <div className="flex min-w-0 gap-2 rounded-md bg-slate-50 px-2.5 py-2">
-      <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
-      <div className="min-w-0">
-        <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{label}</span>
-        <b className="mt-0.5 block text-sm leading-5 text-slate-950">{text}</b>
+    <div className={`min-w-0 rounded-md border border-slate-200 border-l-4 px-2.5 py-2 shadow-sm shadow-slate-200/50 ${toneClass}`}>
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${labelClass}`}>{label}</span>
+        {message.pick && <PickScoreBadge match={match} pick={message.pick} />}
       </div>
+      <div className="min-w-0">
+        <b className="mt-0.5 block text-sm leading-5 text-slate-950">{message.text}</b>
+      </div>
+    </div>
+  );
+}
+
+function messageText(message: string | PlayMessage) {
+  return typeof message === 'string' ? message : message.text;
+}
+
+function PickScoreBadge({ match, pick }: { match: Match; pick: MatchPick }) {
+  return <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={pick.home_goals} awayGoals={pick.away_goals} size="xs" />;
+}
+
+function FlagScore({ homeFlag, awayFlag, homeGoals, awayGoals, size = 'sm' }: { homeFlag: string; awayFlag: string; homeGoals: number | string; awayGoals: number | string; size?: 'xs' | 'sm' | 'md' }) {
+  const flagSize = size === 'md' ? 'h-4 w-6' : size === 'xs' ? 'h-3 w-4' : 'h-3.5 w-5';
+  const textSize = size === 'md' ? 'text-sm' : 'text-xs';
+  return (
+    <div className={`inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-2 py-1 font-black text-slate-950 shadow-sm shadow-slate-200/60 ${textSize}`}>
+      <img src={flagUrl(homeFlag)} alt="" className={`${flagSize} rounded-sm object-cover shadow-sm`} />
+      <span>{homeGoals}</span>
+      <span className="text-slate-300">-</span>
+      <span>{awayGoals}</span>
+      <img src={flagUrl(awayFlag)} alt="" className={`${flagSize} rounded-sm object-cover shadow-sm`} />
     </div>
   );
 }
@@ -588,11 +620,14 @@ function FamilyTrendSummary({ match, picks }: { match: Match; picks: MatchPick[]
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-slate-600">
         <div className="rounded-md bg-white px-2.5 py-2">
           <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Pick de la familia</span>
-          <b className="mt-1 block text-sm text-slate-950">{trend.commonScore}</b>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={trend.commonHomeGoals} awayGoals={trend.commonAwayGoals} />
+            <span className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{trend.commonCount}</span>
+          </div>
         </div>
         <div className="rounded-md bg-white px-2.5 py-2">
           <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Promedio esperado</span>
-          <b className="mt-1 block text-sm text-slate-950">{trend.averageScore}</b>
+          <div className="mt-1"><FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={trend.avgHomeGoals} awayGoals={trend.avgAwayGoals} /></div>
         </div>
         <div className="col-span-2 rounded-md bg-white px-2.5 py-2">
           <span className="block text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Lectura familiar</span>
@@ -628,6 +663,7 @@ function familyTrend(match: Match, picks: MatchPick[]) {
     scoreCounts.set(key, (scoreCounts.get(key) || 0) + 1);
   });
   const common = Array.from(scoreCounts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  const [commonHomeGoals = '-', commonAwayGoals = '-'] = common ? common[0].split('-') : [];
   const avgHome = picks.reduce((sum, pick) => sum + pick.home_goals, 0) / total;
   const avgAway = picks.reduce((sum, pick) => sum + pick.away_goals, 0) / total;
   const leaderPercent = Math.round((counts[0].count / total) * 100);
@@ -640,8 +676,11 @@ function familyTrend(match: Match, picks: MatchPick[]) {
     awayPercent: Math.round((awayCount / total) * 100),
     leader: counts[0].key,
     leaderPercent,
-    commonScore: common ? `${common[0].replace('-', ' - ')} (${common[1]})` : '-',
-    averageScore: `${avgHome.toFixed(1)} - ${avgAway.toFixed(1)}`,
+    commonHomeGoals,
+    commonAwayGoals,
+    commonCount: common ? `${common[1]} picks` : 'Sin picks',
+    avgHomeGoals: avgHome.toFixed(1),
+    avgAwayGoals: avgAway.toFixed(1),
     reading
   };
 }
@@ -655,9 +694,8 @@ function familyDrama(match: Match, picks: MatchPick[], standings: Standing[], pl
   const keyMatch = keyMatchLabel(picks, standings);
   const rivalContext = currentStanding && currentPick ? directRivalContext(currentStanding, currentPick, picks, standings) : { opportunity: '', defense: '' };
   const topThree = currentStanding && !hasResult ? topThreeSignal(currentStanding, standings) : null;
-  const majority = currentPick ? majorityLabel(currentPick, trend, match) : '';
   const radar = radarLabel(picks, standings);
-  return { potentialRank, keyMatch, topThree, majority, radar, ...rivalContext };
+  return { potentialRank, keyMatch, topThree, radar, ...rivalContext };
 }
 
 function potentialRankWithExact(current: Standing, standings: Standing[]) {
@@ -695,14 +733,6 @@ function keyMatchLabel(picks: MatchPick[], standings: Standing[]) {
   if (outcomes.size === 2) return 'Este partido puede sacudir la tabla';
   const scores = new Set(topPicks.map((pick) => `${pick.home_goals}-${pick.away_goals}`));
   return scores.size >= 3 ? 'El Top 5 trae marcadores distintos' : '';
-}
-
-function majorityLabel(currentPick: MatchPick, trend: ReturnType<typeof familyTrend>, match: Match) {
-  const current = pickOutcomeKey(currentPick);
-  if (trend.leaderPercent < 45) return 'La familia está partida en dos';
-  if (current === trend.leader) return 'Vas con la cargada';
-  const leaderName = trend.leader === 'home' ? match.home_name : trend.leader === 'away' ? match.away_name : 'empate';
-  return `Vas contra la cargada (${leaderName})`;
 }
 
 function radarLabel(picks: MatchPick[], standings: Standing[]) {
@@ -749,24 +779,24 @@ function pointGap(a: Standing, b: Standing) {
 function opportunityLabel(current: Standing, currentPick: MatchPick, above: Standing, abovePick: MatchPick) {
   const gap = pointGap(current, above);
   if (samePick(currentPick, abovePick)) {
-    return `Mismo pick que ${above.alias}: así no le metes presión`;
+    return { text: `Mismo pick que ${above.alias}: así no le metes presión`, pick: abovePick };
   }
-  if (gap <= 3) return `¿Y si sí? Exacto y pasas a ${above.alias}`;
-  return `¿Y si sí? Aciertas y le metes presión a ${above.alias}`;
+  if (gap <= 3) return { text: `¿Y si sí? Exacto y pasas a ${above.alias}`, pick: abovePick };
+  return { text: `¿Y si sí? Aciertas y le metes presión a ${above.alias}`, pick: abovePick };
 }
 
 function defenseLabel(current: Standing, currentPick: MatchPick, below: Standing, belowPick: MatchPick) {
   if (samePick(currentPick, belowPick)) {
-    return `Mismo pick que ${below.alias}: aquí no se acerca`;
+    return { text: `Mismo pick que ${below.alias}: aquí no se acerca`, pick: belowPick };
   }
-  return `Ojo con ${below.alias}: viene por ti con pick distinto`;
+  return { text: `Ojo con ${below.alias}: viene por ti con pick distinto`, pick: belowPick };
 }
 
 function tiedDefenseLabel(currentPick: MatchPick, tied: Standing, tiedPick: MatchPick) {
   if (samePick(currentPick, tiedPick)) {
-    return `Empatado con ${tied.alias}: nadie rompe filas aquí`;
+    return { text: `Empatado con ${tied.alias}: nadie rompe filas aquí`, pick: tiedPick };
   }
-  return `Empatado con ${tied.alias}: este pick puede romper el empate`;
+  return { text: `Empatado con ${tied.alias}: este pick puede romper el empate`, pick: tiedPick };
 }
 
 function pickOutcomeKey(pick: Pick | MatchPick) {
@@ -818,15 +848,30 @@ function StatsPanel({ match, allMatches }: { match: Match; allMatches: Match[] }
         {hasRecentResults && <RecentResultsComparison match={match} homeResults={homeRecent} awayResults={awayRecent} />}
         {!stats || (!stats.home && !stats.away && !stats.head_to_head) ? <p className={`text-sm leading-6 text-slate-500 ${hasRecentResults ? 'mt-3' : ''}`}>Datos oficiales validados pendientes de cargar.</p> : <>
           <StatsComparison match={match} home={stats.home} away={stats.away} />
-          {stats.head_to_head && <div className="mt-3 rounded-lg border border-slate-100 bg-white p-3 text-sm">
-            <b>Último enfrentamiento</b>
-            <div className="mt-1 text-slate-600">{stats.head_to_head.last_match_date || 'Fecha pendiente'} · {stats.head_to_head.last_match_score || 'Marcador pendiente'}</div>
-            {stats.head_to_head.competition && <div className="text-xs font-bold text-slate-400">{stats.head_to_head.competition}</div>}
-          </div>}
+          {stats.head_to_head && <HeadToHeadSummary match={match} headToHead={stats.head_to_head} />}
         </>}
       </div>}
     </div>
   );
+}
+
+function HeadToHeadSummary({ match, headToHead }: { match: Match; headToHead: NonNullable<MatchStats['head_to_head']> }) {
+  const parsedScore = parseScoreString(headToHead.last_match_score);
+  return (
+    <div className="mt-3 rounded-lg border border-slate-100 bg-white p-3 text-sm">
+      <b>Último enfrentamiento</b>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-slate-600">
+        <span>{headToHead.last_match_date || 'Fecha pendiente'}</span>
+        {parsedScore ? <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={parsedScore.home} awayGoals={parsedScore.away} /> : <span>{headToHead.last_match_score || 'Marcador pendiente'}</span>}
+      </div>
+      {headToHead.competition && <div className="mt-1 text-xs font-bold text-slate-400">{headToHead.competition}</div>}
+    </div>
+  );
+}
+
+function parseScoreString(score: string | null) {
+  const match = score?.match(/(\d+)\s*[-–]\s*(\d+)/);
+  return match ? { home: match[1], away: match[2] } : null;
 }
 
 function recentTeamResults(teamCode: string, currentMatch: Match, matches: Match[]) {
@@ -938,6 +983,7 @@ function RecentResultRow({ teamCode, result }: { teamCode: string; result: Match
   const opponentGoals = isHome ? result.away_goals : result.home_goals;
   const opponentName = isHome ? result.away_name : result.home_name;
   const opponentFlag = isHome ? result.away_flag : result.home_flag;
+  const teamFlag = isHome ? result.home_flag : result.away_flag;
   const resultLabel = teamGoals === opponentGoals ? 'E' : Number(teamGoals) > Number(opponentGoals) ? 'G' : 'P';
   const resultClass = resultLabel === 'G' ? 'bg-emerald-100 text-pitch' : resultLabel === 'E' ? 'bg-slate-100 text-slate-600' : 'bg-red-50 text-triondaRed';
 
@@ -945,7 +991,7 @@ function RecentResultRow({ teamCode, result }: { teamCode: string; result: Match
     <div className="rounded-md bg-white px-2.5 py-2 text-xs shadow-sm shadow-slate-200/50">
       <div className="flex items-center justify-between gap-2">
         <span className={`shrink-0 rounded-full px-2 py-0.5 font-black ${resultClass}`}>{resultLabel}</span>
-        <b className="shrink-0 text-sm text-slate-950">{teamGoals} - {opponentGoals}</b>
+        <FlagScore homeFlag={teamFlag} awayFlag={opponentFlag} homeGoals={teamGoals ?? '-'} awayGoals={opponentGoals ?? '-'} size="xs" />
       </div>
       <div className="mt-1 flex min-w-0 items-center gap-1.5 text-slate-500">
         <span className="shrink-0 font-bold">vs</span>
@@ -1159,7 +1205,7 @@ function TableView({ standings, matches, player }: { standings: Standing[]; matc
         </div>
         <div className="mt-3 overflow-hidden rounded-lg border border-slate-100">
           {matchPicks.length === 0 && <div className="p-4 text-center text-sm font-bold text-slate-400">Todavia no hay picks para este partido.</div>}
-          {matchPicks.map((pick) => <div key={pick.player_id} className="grid grid-cols-[minmax(0,1fr)_76px_58px] items-center gap-2 border-t border-slate-100 px-3 py-3 first:border-t-0">
+          {selectedMatch && matchPicks.map((pick) => <div key={pick.player_id} className="grid grid-cols-[minmax(0,1fr)_112px_58px] items-center gap-2 border-t border-slate-100 px-3 py-3 first:border-t-0">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-1.5">
                 <b className="truncate">{pick.alias}</b>
@@ -1167,7 +1213,7 @@ function TableView({ standings, matches, player }: { standings: Standing[]; matc
               </div>
               {pick.rank && <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Después: #{pick.rank}</span>}
             </div>
-            <span className="text-right text-lg font-black">{pick.home_goals} - {pick.away_goals}</span>
+            <div className="justify-self-end"><FlagScore homeFlag={selectedMatch.home_flag} awayFlag={selectedMatch.away_flag} homeGoals={pick.home_goals} awayGoals={pick.away_goals} /></div>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-center text-sm font-black text-pitch">{pick.points} pts</span>
           </div>)}
         </div>
