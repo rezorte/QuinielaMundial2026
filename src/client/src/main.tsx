@@ -714,13 +714,20 @@ function radarLabel(picks: MatchPick[], standings: Standing[]) {
 }
 
 function directRivalContext(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[]) {
-  const index = standings.findIndex((row) => row.player_id === current.player_id);
-  const above = standings[index - 1];
-  const below = standings[index + 1];
+  const above = [...standings]
+    .filter((row) => row.player_id !== current.player_id && row.rank < current.rank)
+    .sort((a, b) => b.rank - a.rank || Number(a.points) - Number(b.points))[0];
+  const tied = standings
+    .filter((row) => row.player_id !== current.player_id && row.rank === current.rank)
+    .sort((a, b) => a.alias.localeCompare(b.alias))[0];
+  const below = standings
+    .filter((row) => row.player_id !== current.player_id && row.rank > current.rank)
+    .sort((a, b) => a.rank - b.rank || Number(b.points) - Number(a.points))[0];
   const abovePick = above ? picks.find((item) => item.player_id === above.player_id) : undefined;
+  const tiedPick = tied ? picks.find((item) => item.player_id === tied.player_id) : undefined;
   const belowPick = below ? picks.find((item) => item.player_id === below.player_id) : undefined;
   const opportunity = above && abovePick ? opportunityLabel(current, currentPick, above, abovePick) : '';
-  const defense = below && belowPick ? defenseLabel(current, currentPick, below, belowPick) : '';
+  const defense = tied && tiedPick ? tiedDefenseLabel(currentPick, tied, tiedPick) : below && belowPick ? defenseLabel(current, currentPick, below, belowPick) : '';
   return { opportunity, defense };
 }
 
@@ -746,6 +753,13 @@ function defenseLabel(current: Standing, currentPick: MatchPick, below: Standing
     return `Mismo pick que ${below.alias}: mantienes distancia en este partido`;
   }
   return `Ojo con ${below.alias}: trae pick distinto y quiere acercarse`;
+}
+
+function tiedDefenseLabel(currentPick: MatchPick, tied: Standing, tiedPick: MatchPick) {
+  if (samePick(currentPick, tiedPick)) {
+    return `Empatado con ${tied.alias}: traen el mismo pick`;
+  }
+  return `Empatado con ${tied.alias}: trae pick distinto y puede despegarse`;
 }
 
 function pickOutcomeKey(pick: Pick | MatchPick) {
