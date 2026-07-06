@@ -651,9 +651,7 @@ function familyDrama(match: Match, picks: MatchPick[], standings: Standing[], pl
   const currentPick = player ? picks.find((pick) => pick.player_id === player.id) : undefined;
   const trend = familyTrend(match, picks);
   const hasResult = match.home_goals !== null && match.away_goals !== null;
-  const potentialRank = currentStanding && !hasResult
-    ? `Si aciertas exacto, podrías llegar hasta #${potentialRankWithExact(currentStanding, standings)}`
-    : '';
+  const potentialRank = currentStanding && !hasResult ? potentialRankLabel(currentStanding, standings) : '';
   const keyMatch = keyMatchLabel(picks, standings);
   const rivalContext = currentStanding && currentPick ? directRivalContext(currentStanding, currentPick, picks, standings) : { opportunity: '', defense: '' };
   const topThree = currentStanding && !hasResult ? topThreeSignal(currentStanding, standings) : null;
@@ -667,9 +665,17 @@ function potentialRankWithExact(current: Standing, standings: Standing[]) {
   return standings.filter((row) => row.player_id !== current.player_id && Number(row.points) > maxPoints).length + 1;
 }
 
+function potentialRankLabel(current: Standing, standings: Standing[]) {
+  const possibleRank = potentialRankWithExact(current, standings);
+  const currentRank = Number(current.rank);
+  if (!Number.isFinite(currentRank) || possibleRank >= currentRank) return '';
+  return `Con exacto brincas hasta #${possibleRank}`;
+}
+
 function topThreeSignal(current: Standing, standings: Standing[]) {
-  if (current.rank <= 3) {
-    return { text: 'Estás dentro del podio', tone: 'pitch' };
+  const currentRank = Number(current.rank);
+  if (currentRank <= 3) {
+    return { text: currentRank === 1 ? 'A defender la cima' : 'A defender el podio', tone: 'pitch' };
   }
   const possibleRank = potentialRankWithExact(current, standings);
   if (possibleRank <= 3) return { text: 'Exacto te mete al podio', tone: 'pitch' };
@@ -685,18 +691,18 @@ function keyMatchLabel(picks: MatchPick[], standings: Standing[]) {
   const topPicks = picks.filter((pick) => topIds.has(pick.player_id));
   if (topPicks.length < 2) return '';
   const outcomes = new Set(topPicks.map(pickOutcomeKey));
-  if (outcomes.size >= 3) return 'Divide completamente al top 5';
-  if (outcomes.size === 2) return 'Puede mover posiciones arriba';
+  if (outcomes.size >= 3) return 'El Top 5 trae guerra de picks';
+  if (outcomes.size === 2) return 'Este partido puede sacudir la tabla';
   const scores = new Set(topPicks.map((pick) => `${pick.home_goals}-${pick.away_goals}`));
-  return scores.size >= 3 ? 'Top 5 trae marcadores distintos' : '';
+  return scores.size >= 3 ? 'El Top 5 trae marcadores distintos' : '';
 }
 
 function majorityLabel(currentPick: MatchPick, trend: ReturnType<typeof familyTrend>, match: Match) {
   const current = pickOutcomeKey(currentPick);
-  if (trend.leaderPercent < 45) return 'La familia está dividida';
-  if (current === trend.leader) return 'Vas con la mayoría';
+  if (trend.leaderPercent < 45) return 'La familia está partida en dos';
+  if (current === trend.leader) return 'Vas con la cargada';
   const leaderName = trend.leader === 'home' ? match.home_name : trend.leader === 'away' ? match.away_name : 'empate';
-  return `Vas contra la mayoría (${leaderName})`;
+  return `Vas contra la cargada (${leaderName})`;
 }
 
 function radarLabel(picks: MatchPick[], standings: Standing[]) {
@@ -704,25 +710,26 @@ function radarLabel(picks: MatchPick[], standings: Standing[]) {
   const topPicks = picks.filter((pick) => topThreeIds.has(pick.player_id));
   if (topPicks.length < 2) return '';
   const topOutcomes = new Set(topPicks.map(pickOutcomeKey));
-  if (topOutcomes.size >= 3) return 'El Top 3 está totalmente dividido';
+  if (topOutcomes.size >= 3) return 'El Top 3 se va a dar con todo';
   if (topOutcomes.size === 2) return 'El Top 3 trae caminos distintos';
   const chasingIds = new Set(standings.slice(3, 8).map((row) => row.player_id));
   const chasingPicks = picks.filter((pick) => chasingIds.has(pick.player_id));
   const chasingDifferent = chasingPicks.some((pick) => pickOutcomeKey(pick) !== pickOutcomeKey(topPicks[0]));
-  if (chasingDifferent) return 'Los perseguidores se están arriesgando';
+  if (chasingDifferent) return 'Los perseguidores vienen arriesgando';
   return 'El grupo de arriba va alineado';
 }
 
 function directRivalContext(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[]) {
+  const currentRank = Number(current.rank);
   const above = [...standings]
-    .filter((row) => row.player_id !== current.player_id && row.rank < current.rank)
-    .sort((a, b) => b.rank - a.rank || Number(a.points) - Number(b.points))[0];
+    .filter((row) => row.player_id !== current.player_id && Number(row.rank) < currentRank)
+    .sort((a, b) => Number(b.rank) - Number(a.rank) || Number(a.points) - Number(b.points))[0];
   const tied = standings
-    .filter((row) => row.player_id !== current.player_id && row.rank === current.rank)
+    .filter((row) => row.player_id !== current.player_id && Number(row.rank) === currentRank)
     .sort((a, b) => a.alias.localeCompare(b.alias))[0];
   const below = standings
-    .filter((row) => row.player_id !== current.player_id && row.rank > current.rank)
-    .sort((a, b) => a.rank - b.rank || Number(b.points) - Number(a.points))[0];
+    .filter((row) => row.player_id !== current.player_id && Number(row.rank) > currentRank)
+    .sort((a, b) => Number(a.rank) - Number(b.rank) || Number(b.points) - Number(a.points))[0];
   const abovePick = above ? picks.find((item) => item.player_id === above.player_id) : undefined;
   const tiedPick = tied ? picks.find((item) => item.player_id === tied.player_id) : undefined;
   const belowPick = below ? picks.find((item) => item.player_id === below.player_id) : undefined;
@@ -742,24 +749,24 @@ function pointGap(a: Standing, b: Standing) {
 function opportunityLabel(current: Standing, currentPick: MatchPick, above: Standing, abovePick: MatchPick) {
   const gap = pointGap(current, above);
   if (samePick(currentPick, abovePick)) {
-    return `Mismo pick que ${above.alias}: para acercarte, necesitas diferenciarte`;
+    return `Mismo pick que ${above.alias}: así no le metes presión`;
   }
-  if (gap <= 3) return `¿Y si sí? Aciertas exacto y pasas a ${above.alias}`;
-  return `¿Y si sí? Aciertas y te acercas a ${above.alias}`;
+  if (gap <= 3) return `¿Y si sí? Exacto y pasas a ${above.alias}`;
+  return `¿Y si sí? Aciertas y le metes presión a ${above.alias}`;
 }
 
 function defenseLabel(current: Standing, currentPick: MatchPick, below: Standing, belowPick: MatchPick) {
   if (samePick(currentPick, belowPick)) {
-    return `Mismo pick que ${below.alias}: mantienes distancia en este partido`;
+    return `Mismo pick que ${below.alias}: aquí no se acerca`;
   }
-  return `Ojo con ${below.alias}: trae pick distinto y quiere acercarse`;
+  return `Ojo con ${below.alias}: viene por ti con pick distinto`;
 }
 
 function tiedDefenseLabel(currentPick: MatchPick, tied: Standing, tiedPick: MatchPick) {
   if (samePick(currentPick, tiedPick)) {
-    return `Empatado con ${tied.alias}: traen el mismo pick`;
+    return `Empatado con ${tied.alias}: nadie rompe filas aquí`;
   }
-  return `Empatado con ${tied.alias}: trae pick distinto y puede despegarse`;
+  return `Empatado con ${tied.alias}: este pick puede romper el empate`;
 }
 
 function pickOutcomeKey(pick: Pick | MatchPick) {
