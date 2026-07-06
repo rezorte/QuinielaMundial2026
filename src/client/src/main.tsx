@@ -23,7 +23,8 @@ type ResultDraft = { match_id: string; home_goals: number | null; away_goals: nu
 type Player = { id: string; alias: string; display_name?: string; birth_year?: string; active?: boolean | 0 | 1 };
 type Standing = { rank: number; rank_delta: number; player_id: string; alias: string; points: number; exacts: number; results: number };
 type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number; rank?: number | null; rank_delta?: number };
-type PlayMessage = { text: string; pick?: MatchPick };
+type PlayPickPreview = { label: string; pick: Pick | MatchPick; isSelf?: boolean };
+type PlayMessage = { text: string; pick?: MatchPick; pickLabel?: string; picks?: PlayPickPreview[] };
 type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean; show_match_picks: boolean; show_pick_scores: boolean };
 type TeamStats = {
   team_code: string;
@@ -542,12 +543,9 @@ function PlayerPlayPanel({ match, standings, player }: { match: Match; standings
 
 function PlayerPlaySummary({ drama, match }: { drama: ReturnType<typeof familyDrama>; match: Match }) {
   const items = [
-    drama.opportunity && { label: 'Ataque', text: drama.opportunity, tone: 'pitch' },
+    drama.attack && { label: 'Ataque', text: drama.attack, tone: 'pitch' },
     drama.defense && { label: 'Defensa', text: drama.defense, tone: 'red' },
-    drama.topThree && { label: 'Top 3', text: drama.topThree.text, tone: drama.topThree.tone },
-    drama.radar && { label: 'Radar', text: drama.radar, tone: 'pitch' },
-    drama.keyMatch && { label: 'Clave', text: drama.keyMatch, tone: 'gold' },
-    drama.potentialRank && { label: 'Escenario', text: drama.potentialRank, tone: 'slate' }
+    drama.topThree && { label: 'Top 3', text: drama.topThree, tone: 'gold' }
   ].filter(Boolean) as Array<{ label: string; text: string | PlayMessage; tone: string }>;
   return (
     <div className="grid gap-2 min-[520px]:grid-cols-2">
@@ -576,10 +574,14 @@ function PlayChip({ label, text, tone, match }: { label: string; text: string | 
     <div className={`min-w-0 rounded-md border border-slate-200 border-l-4 px-2.5 py-2 shadow-sm shadow-slate-200/50 ${toneClass}`}>
       <div className="flex min-w-0 items-start justify-between gap-2">
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${labelClass}`}>{label}</span>
-        {message.pick && <PickScoreBadge match={match} pick={message.pick} />}
+        {message.pick && !message.picks?.length && <PickScoreBadge match={match} pick={message.pick} />}
       </div>
       <div className="min-w-0">
         <b className="mt-0.5 block text-sm leading-5 text-slate-950">{message.text}</b>
+        {message.pick && !message.picks?.length && message.pickLabel && <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{message.pickLabel}</span>}
+        {message.picks?.length ? <div className="mt-2 flex flex-wrap gap-1.5">
+          {message.picks.map((item) => <PickPreview key={`${item.label}-${item.pick.home_goals}-${item.pick.away_goals}`} match={match} item={item} />)}
+        </div> : null}
       </div>
     </div>
   );
@@ -591,6 +593,15 @@ function messageText(message: string | PlayMessage) {
 
 function PickScoreBadge({ match, pick }: { match: Match; pick: MatchPick }) {
   return <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={pick.home_goals} awayGoals={pick.away_goals} size="xs" />;
+}
+
+function PickPreview({ match, item }: { match: Match; item: PlayPickPreview }) {
+  return (
+    <div className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 shadow-sm shadow-slate-200/60 ${item.isSelf ? 'bg-emerald-50 ring-1 ring-pitch/30' : 'bg-white'}`}>
+      <span className={`max-w-[132px] truncate text-[10px] font-black uppercase tracking-[0.08em] ${item.isSelf ? 'text-pitch' : 'text-slate-400'}`}>{item.label}</span>
+      <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={item.pick.home_goals} awayGoals={item.pick.away_goals} size="xs" />
+    </div>
+  );
 }
 
 function FlagScore({ homeFlag, awayFlag, homeGoals, awayGoals, size = 'sm' }: { homeFlag: string; awayFlag: string; homeGoals: number | string; awayGoals: number | string; size?: 'xs' | 'sm' | 'md' }) {
@@ -688,115 +699,95 @@ function familyTrend(match: Match, picks: MatchPick[]) {
 function familyDrama(match: Match, picks: MatchPick[], standings: Standing[], player?: Player) {
   const currentStanding = player ? standings.find((row) => row.player_id === player.id) : undefined;
   const currentPick = player ? picks.find((pick) => pick.player_id === player.id) : undefined;
-  const trend = familyTrend(match, picks);
   const hasResult = match.home_goals !== null && match.away_goals !== null;
-  const potentialRank = currentStanding && !hasResult ? potentialRankLabel(currentStanding, standings) : '';
-  const keyMatch = keyMatchLabel(picks, standings);
-  const rivalContext = currentStanding && currentPick ? directRivalContext(currentStanding, currentPick, picks, standings) : { opportunity: '', defense: '' };
-  const topThree = currentStanding && !hasResult ? topThreeSignal(currentStanding, standings) : null;
-  const radar = radarLabel(picks, standings);
-  return { potentialRank, keyMatch, topThree, radar, ...rivalContext };
+  const attack = currentStanding && currentPick && !hasResult ? attackLabel(currentStanding, currentPick, picks, standings) : '';
+  const defense = currentStanding && currentPick && !hasResult ? defenseLabel(currentStanding, currentPick, picks, standings) : '';
+  const topThree = currentStanding && currentPick ? topThreeLabel(currentStanding, currentPick, picks, standings) : '';
+  return { attack, defense, topThree };
 }
 
-function potentialRankWithExact(current: Standing, standings: Standing[]) {
-  const maxPoints = Number(current.points) + 3;
-  return standings.filter((row) => row.player_id !== current.player_id && Number(row.points) > maxPoints).length + 1;
-}
-
-function potentialRankLabel(current: Standing, standings: Standing[]) {
-  const possibleRank = potentialRankWithExact(current, standings);
+function attackLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[]): PlayMessage | '' {
+  const currentPoints = Number(current.points);
   const currentRank = Number(current.rank);
-  if (!Number.isFinite(currentRank) || possibleRank >= currentRank) return '';
-  return `Con exacto brincas hasta #${possibleRank}`;
-}
-
-function topThreeSignal(current: Standing, standings: Standing[]) {
-  const currentRank = Number(current.rank);
-  if (currentRank <= 3) {
-    return { text: currentRank === 1 ? 'A defender la cima' : 'A defender el podio', tone: 'pitch' };
+  const currentMax = currentPoints + 3;
+  const passable = standings
+    .filter((row) => row.player_id !== current.player_id)
+    .filter((row) => Number(row.rank) < currentRank && currentMax > Number(row.points))
+    .sort((a, b) => Number(b.rank) - Number(a.rank) || Number(a.points) - Number(b.points));
+  const rivals = passable
+    .map((row) => ({ row, pick: picks.find((pick) => pick.player_id === row.player_id) }))
+    .filter((item): item is { row: Standing; pick: MatchPick } => Boolean(item.pick));
+  const previews = [{ label: 'Tu pick', pick: currentPick, isSelf: true }, ...rivals.map(({ row, pick }) => ({ label: row.alias, pick }))];
+  if (rivals.length) {
+    const possibleRank = standings.filter((row) => row.player_id !== current.player_id && Number(row.points) >= currentMax).length + 1;
+    return {
+      text: `¿Y si sí? Con exacto y que no sumen igual, puedes pasar a ${nameList(rivals.map(({ row }) => row.alias))} y subir hasta #${possibleRank}.`,
+      picks: previews
+    };
   }
-  const possibleRank = potentialRankWithExact(current, standings);
-  if (possibleRank <= 3) return { text: 'Exacto te mete al podio', tone: 'pitch' };
-  if (possibleRank <= 5) return { text: 'Exacto te deja cerca del podio', tone: 'gold' };
-  const third = standings.find((row) => row.rank === 3);
-  if (!third) return null;
-  const gap = Number(third.points) - Number(current.points);
-  return { text: `Estás a ${gap} pts del podio`, tone: 'red' };
-}
-
-function keyMatchLabel(picks: MatchPick[], standings: Standing[]) {
-  const topIds = new Set(standings.slice(0, 5).map((row) => row.player_id));
-  const topPicks = picks.filter((pick) => topIds.has(pick.player_id));
-  if (topPicks.length < 2) return '';
-  const outcomes = new Set(topPicks.map(pickOutcomeKey));
-  if (outcomes.size >= 3) return 'El Top 5 trae guerra de picks';
-  if (outcomes.size === 2) return 'Este partido puede sacudir la tabla';
-  const scores = new Set(topPicks.map((pick) => `${pick.home_goals}-${pick.away_goals}`));
-  return scores.size >= 3 ? 'El Top 5 trae marcadores distintos' : '';
-}
-
-function radarLabel(picks: MatchPick[], standings: Standing[]) {
-  const topThreeIds = new Set(standings.slice(0, 3).map((row) => row.player_id));
-  const topPicks = picks.filter((pick) => topThreeIds.has(pick.player_id));
-  if (topPicks.length < 2) return '';
-  const topOutcomes = new Set(topPicks.map(pickOutcomeKey));
-  if (topOutcomes.size >= 3) return 'El Top 3 se va a dar con todo';
-  if (topOutcomes.size === 2) return 'El Top 3 trae caminos distintos';
-  const chasingIds = new Set(standings.slice(3, 8).map((row) => row.player_id));
-  const chasingPicks = picks.filter((pick) => chasingIds.has(pick.player_id));
-  const chasingDifferent = chasingPicks.some((pick) => pickOutcomeKey(pick) !== pickOutcomeKey(topPicks[0]));
-  if (chasingDifferent) return 'Los perseguidores vienen arriesgando';
-  return 'El grupo de arriba va alineado';
-}
-
-function directRivalContext(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[]) {
-  const currentRank = Number(current.rank);
-  const above = [...standings]
+  const nextAbove = standings
     .filter((row) => row.player_id !== current.player_id && Number(row.rank) < currentRank)
     .sort((a, b) => Number(b.rank) - Number(a.rank) || Number(a.points) - Number(b.points))[0];
-  const tied = standings
-    .filter((row) => row.player_id !== current.player_id && Number(row.rank) === currentRank)
-    .sort((a, b) => a.alias.localeCompare(b.alias))[0];
-  const below = standings
-    .filter((row) => row.player_id !== current.player_id && Number(row.rank) > currentRank)
-    .sort((a, b) => Number(a.rank) - Number(b.rank) || Number(b.points) - Number(a.points))[0];
-  const abovePick = above ? picks.find((item) => item.player_id === above.player_id) : undefined;
-  const tiedPick = tied ? picks.find((item) => item.player_id === tied.player_id) : undefined;
-  const belowPick = below ? picks.find((item) => item.player_id === below.player_id) : undefined;
-  const opportunity = above && abovePick ? opportunityLabel(current, currentPick, above, abovePick) : '';
-  const defense = tied && tiedPick ? tiedDefenseLabel(currentPick, tied, tiedPick) : below && belowPick ? defenseLabel(current, currentPick, below, belowPick) : '';
-  return { opportunity, defense };
+  const nextPick = nextAbove ? picks.find((pick) => pick.player_id === nextAbove.player_id) : undefined;
+  if (!nextAbove || !nextPick) return '';
+  return {
+    text: samePick(currentPick, nextPick)
+      ? `Traes el mismo pick que ${nextAbove.alias}; este partido mantiene la distancia si ambos suman igual.`
+      : `Si aciertas y ${nextAbove.alias} no, te acercas en la tabla.`,
+    picks: [{ label: 'Tu pick', pick: currentPick, isSelf: true }, { label: nextAbove.alias, pick: nextPick }]
+  };
 }
 
 function samePick(a: Pick | MatchPick, b: Pick | MatchPick) {
   return a.home_goals === b.home_goals && a.away_goals === b.away_goals;
 }
 
-function pointGap(a: Standing, b: Standing) {
-  return Math.abs(Number(a.points) - Number(b.points));
+function defenseLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[]): PlayMessage | '' {
+  const currentPoints = Number(current.points);
+  const currentRank = Number(current.rank);
+  const threats = standings
+    .filter((row) => row.player_id !== current.player_id)
+    .filter((row) => Number(row.rank) >= currentRank && Number(row.points) + 3 > currentPoints)
+    .sort((a, b) => Number(a.rank) - Number(b.rank) || Number(b.points) - Number(a.points));
+  const rivals = threats
+    .map((row) => ({ row, pick: picks.find((pick) => pick.player_id === row.player_id) }))
+    .filter((item): item is { row: Standing; pick: MatchPick } => Boolean(item.pick));
+  if (!rivals.length) return '';
+  const different = rivals.filter(({ pick }) => !samePick(currentPick, pick));
+  const focus = different.length ? different : rivals;
+  return {
+    text: different.length
+      ? `Ojo: si fallas y pegan exacto, ${nameList(focus.map(({ row }) => row.alias))} te puede pasar o alcanzar.`
+      : `Traen tu mismo camino: ${nameList(focus.map(({ row }) => row.alias))} no te recorta si todos suman igual.`,
+    picks: [{ label: 'Tu pick', pick: currentPick, isSelf: true }, ...focus.map(({ row, pick }) => ({ label: row.alias, pick }))]
+  };
 }
 
-function opportunityLabel(current: Standing, currentPick: MatchPick, above: Standing, abovePick: MatchPick) {
-  const gap = pointGap(current, above);
-  if (samePick(currentPick, abovePick)) {
-    return { text: `Mismo pick que ${above.alias}: así no le metes presión`, pick: abovePick };
-  }
-  if (gap <= 3) return { text: `¿Y si sí? Exacto y pasas a ${above.alias}`, pick: abovePick };
-  return { text: `¿Y si sí? Aciertas y le metes presión a ${above.alias}`, pick: abovePick };
+function topThreeLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[]): PlayMessage | '' {
+  const topRows = standings.slice(0, 3);
+  const topPicks = topRows
+    .map((row) => ({ row, pick: picks.find((pick) => pick.player_id === row.player_id) }))
+    .filter((item): item is { row: Standing; pick: MatchPick } => Boolean(item.pick));
+  if (topPicks.length < 2) return '';
+  const currentInTop = topRows.some((row) => row.player_id === current.player_id);
+  const sameTop = topPicks.filter(({ row, pick }) => row.player_id !== current.player_id && samePick(currentPick, pick));
+  const differentOutcomes = new Set(topPicks.map(({ pick }) => pickOutcomeKey(pick))).size > 1;
+  const text = currentInTop
+    ? differentOutcomes
+      ? 'Estás en el Top 3; tu pick va marcado para ver quién se separa.'
+      : 'El Top 3 va alineado; tu pick va marcado.'
+    : sameTop.length
+      ? `Traes el mismo camino que ${nameList(sameTop.map(({ row }) => row.alias))}; mira cómo viene el Top 3.`
+      : 'Vas contra el Top 3; estos son sus caminos.';
+  const previews = topPicks.map(({ row, pick }) => ({ label: row.player_id === current.player_id ? 'Tu pick' : row.alias, pick, isSelf: row.player_id === current.player_id }));
+  if (!currentInTop) previews.unshift({ label: 'Tu pick', pick: currentPick, isSelf: true });
+  return { text, picks: previews };
 }
 
-function defenseLabel(current: Standing, currentPick: MatchPick, below: Standing, belowPick: MatchPick) {
-  if (samePick(currentPick, belowPick)) {
-    return { text: `Mismo pick que ${below.alias}: aquí no se acerca`, pick: belowPick };
-  }
-  return { text: `Ojo con ${below.alias}: viene por ti con pick distinto`, pick: belowPick };
-}
-
-function tiedDefenseLabel(currentPick: MatchPick, tied: Standing, tiedPick: MatchPick) {
-  if (samePick(currentPick, tiedPick)) {
-    return { text: `Empatado con ${tied.alias}: nadie rompe filas aquí`, pick: tiedPick };
-  }
-  return { text: `Empatado con ${tied.alias}: este pick puede romper el empate`, pick: tiedPick };
+function nameList(names: string[]) {
+  if (names.length <= 1) return names[0] || '';
+  if (names.length === 2) return `${names[0]} y ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
 }
 
 function pickOutcomeKey(pick: Pick | MatchPick) {
