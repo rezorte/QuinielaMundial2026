@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, CircleDot, Lock, LogOut, Pencil, Settings, Trophy, UserPlus } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, CircleDot, Crown, Lock, LogOut, Medal, Pencil, Settings, Trophy, UserPlus } from 'lucide-react';
 import './styles.css';
 
 type Match = {
@@ -22,8 +22,8 @@ type Pick = { match_id: string; home_goals: number; away_goals: number };
 type ResultDraft = { match_id: string; home_goals: number | null; away_goals: number | null };
 type Player = { id: string; alias: string; display_name?: string; birth_year?: string; active?: boolean | 0 | 1 };
 type Standing = { rank: number; rank_delta: number; player_id: string; alias: string; points: number; exacts: number; results: number };
-type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number; rank?: number | null; rank_delta?: number };
-type PlayPickPreview = { label: string; pick: Pick | MatchPick; isSelf?: boolean };
+type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number; rank?: number | null; rank_delta?: number; rank_before?: number | null; points_before?: number | null; points_after?: number | null };
+type PlayPickPreview = { label: string; pick: Pick | MatchPick; isSelf?: boolean; meta?: string; rank?: number };
 type PlayMessage = { text: string; pick?: MatchPick; pickLabel?: string; picks?: PlayPickPreview[] };
 type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean; show_match_picks: boolean; show_pick_scores: boolean };
 type TeamStats = {
@@ -596,10 +596,13 @@ function PickScoreBadge({ match, pick }: { match: Match; pick: MatchPick }) {
 }
 
 function PickPreview({ match, item }: { match: Match; item: PlayPickPreview }) {
+  const rankClass = item.rank === 1 ? 'bg-triondaGold text-slate-950' : item.rank === 2 ? 'bg-slate-200 text-slate-700' : item.rank === 3 ? 'bg-[#E8C1A0] text-slate-800' : '';
   return (
     <div className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 shadow-sm shadow-slate-200/60 ${item.isSelf ? 'bg-emerald-50 ring-1 ring-pitch/30' : 'bg-white'}`}>
+      {item.rank && <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black ${rankClass}`}>#{item.rank}</span>}
       <span className={`max-w-[132px] truncate text-[10px] font-black uppercase tracking-[0.08em] ${item.isSelf ? 'text-pitch' : 'text-slate-400'}`}>{item.label}</span>
       <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={item.pick.home_goals} awayGoals={item.pick.away_goals} size="xs" />
+      {item.meta && <span className="text-[10px] font-black text-slate-400">{item.meta}</span>}
     </div>
   );
 }
@@ -697,16 +700,33 @@ function familyTrend(match: Match, picks: MatchPick[]) {
 }
 
 function familyDrama(match: Match, picks: MatchPick[], standings: Standing[], player?: Player) {
-  const currentStanding = player ? standings.find((row) => row.player_id === player.id) : undefined;
   const currentPick = player ? picks.find((pick) => pick.player_id === player.id) : undefined;
   const hasResult = match.home_goals !== null && match.away_goals !== null;
-  const attack = currentStanding && currentPick && !hasResult ? attackLabel(currentStanding, currentPick, picks, standings) : '';
-  const defense = currentStanding && currentPick && !hasResult ? defenseLabel(currentStanding, currentPick, picks, standings) : '';
-  const topThree = currentStanding && currentPick ? topThreeLabel(currentStanding, currentPick, picks, standings) : '';
+  const contextualStandings = contextualStandingsForMatch(picks, standings, hasResult);
+  const currentStanding = player ? contextualStandings.find((row) => row.player_id === player.id) : undefined;
+  const attack = currentStanding && currentPick ? attackLabel(currentStanding, currentPick, picks, contextualStandings, hasResult) : '';
+  const defense = currentStanding && currentPick ? defenseLabel(currentStanding, currentPick, picks, contextualStandings, hasResult) : '';
+  const topThree = currentStanding && currentPick ? topThreeLabel(currentStanding, currentPick, picks, contextualStandings, hasResult) : '';
   return { attack, defense, topThree };
 }
 
-function attackLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[]): PlayMessage | '' {
+function contextualStandingsForMatch(picks: MatchPick[], standings: Standing[], hasResult: boolean): Standing[] {
+  if (!hasResult || !picks.some((pick) => pick.rank_before !== null && pick.rank_before !== undefined)) return standings;
+  return picks
+    .filter((pick) => pick.rank_before !== null && pick.rank_before !== undefined)
+    .map((pick) => ({
+      player_id: pick.player_id,
+      alias: pick.alias,
+      rank: Number(pick.rank_before),
+      rank_delta: pick.rank_delta || 0,
+      points: Number(pick.points_before || 0),
+      exacts: 0,
+      results: 0
+    }))
+    .sort((a, b) => Number(a.rank) - Number(b.rank) || Number(b.points) - Number(a.points) || a.alias.localeCompare(b.alias));
+}
+
+function attackLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[], hasResult: boolean): PlayMessage | '' {
   const currentPoints = Number(current.points);
   const currentRank = Number(current.rank);
   const currentMax = currentPoints + 3;
@@ -717,12 +737,31 @@ function attackLabel(current: Standing, currentPick: MatchPick, picks: MatchPick
   const rivals = passable
     .map((row) => ({ row, pick: picks.find((pick) => pick.player_id === row.player_id) }))
     .filter((item): item is { row: Standing; pick: MatchPick } => Boolean(item.pick));
-  const previews = [{ label: 'Tu pick', pick: currentPick, isSelf: true }, ...rivals.map(({ row, pick }) => ({ label: row.alias, pick }))];
-  if (rivals.length) {
+  const differentRivals = rivals.filter(({ pick }) => !samePick(currentPick, pick));
+  const previews = [{ label: 'Tu pick', pick: currentPick, isSelf: true, meta: pointsMeta(currentPick, hasResult) }, ...differentRivals.map(({ row, pick }) => ({ label: row.alias, pick, meta: pointsMeta(pick, hasResult) }))];
+  if (differentRivals.length) {
     const possibleRank = standings.filter((row) => row.player_id !== current.player_id && Number(row.points) >= currentMax).length + 1;
+    if (hasResult) {
+      const passed = differentRivals.filter(({ row }) => afterRank(currentPick) !== null && afterRank(rowPick(picks, row.player_id)) !== null && Number(afterRank(currentPick)) < Number(afterRank(rowPick(picks, row.player_id))));
+      return {
+        text: passed.length
+          ? `Se logró: con este partido pasaste a ${nameList(passed.map(({ row }) => row.alias))}.`
+          : `No se dio: necesitabas sumar más que ${nameList(differentRivals.map(({ row }) => row.alias))} para subir hacia #${possibleRank}.`,
+        picks: previews
+      };
+    }
     return {
-      text: `¿Y si sí? Con exacto y que no sumen igual, puedes pasar a ${nameList(rivals.map(({ row }) => row.alias))} y subir hasta #${possibleRank}.`,
+      text: `Supuesto: con exacto y que ${nameList(differentRivals.map(({ row }) => row.alias))} sumen menos que tú, puedes subir hasta #${possibleRank}.`,
       picks: previews
+    };
+  }
+  const sameRivals = rivals.filter(({ pick }) => samePick(currentPick, pick));
+  if (sameRivals.length) {
+    return {
+      text: hasResult
+        ? `Traías el mismo pick que ${nameList(sameRivals.map(({ row }) => row.alias))}; este partido no cambiaba esa distancia entre ustedes.`
+        : `Traes el mismo pick que ${nameList(sameRivals.map(({ row }) => row.alias))}; este partido no te sirve para pasarlos.`,
+      picks: [{ label: 'Tu pick', pick: currentPick, isSelf: true, meta: pointsMeta(currentPick, hasResult) }, ...sameRivals.map(({ row, pick }) => ({ label: row.alias, pick, meta: pointsMeta(pick, hasResult) }))]
     };
   }
   const nextAbove = standings
@@ -731,10 +770,12 @@ function attackLabel(current: Standing, currentPick: MatchPick, picks: MatchPick
   const nextPick = nextAbove ? picks.find((pick) => pick.player_id === nextAbove.player_id) : undefined;
   if (!nextAbove || !nextPick) return '';
   return {
-    text: samePick(currentPick, nextPick)
-      ? `Traes el mismo pick que ${nextAbove.alias}; este partido mantiene la distancia si ambos suman igual.`
-      : `Si aciertas y ${nextAbove.alias} no, te acercas en la tabla.`,
-    picks: [{ label: 'Tu pick', pick: currentPick, isSelf: true }, { label: nextAbove.alias, pick: nextPick }]
+    text: hasResult
+      ? `Contexto: este partido no alcanzaba para pasarlo, pero sí podía acercarte a ${nextAbove.alias}.`
+      : samePick(currentPick, nextPick)
+        ? `Traes el mismo pick que ${nextAbove.alias}; este partido mantiene la distancia si ambos suman igual.`
+        : `Si aciertas y ${nextAbove.alias} no, te acercas en la tabla.`,
+    picks: [{ label: 'Tu pick', pick: currentPick, isSelf: true, meta: pointsMeta(currentPick, hasResult) }, { label: nextAbove.alias, pick: nextPick, meta: pointsMeta(nextPick, hasResult) }]
   };
 }
 
@@ -742,7 +783,7 @@ function samePick(a: Pick | MatchPick, b: Pick | MatchPick) {
   return a.home_goals === b.home_goals && a.away_goals === b.away_goals;
 }
 
-function defenseLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[]): PlayMessage | '' {
+function defenseLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[], hasResult: boolean): PlayMessage | '' {
   const currentPoints = Number(current.points);
   const currentRank = Number(current.rank);
   const threats = standings
@@ -755,15 +796,31 @@ function defenseLabel(current: Standing, currentPick: MatchPick, picks: MatchPic
   if (!rivals.length) return '';
   const different = rivals.filter(({ pick }) => !samePick(currentPick, pick));
   const focus = different.length ? different : rivals;
+  const previews = [{ label: 'Tu pick', pick: currentPick, isSelf: true, meta: pointsMeta(currentPick, hasResult) }, ...focus.map(({ row, pick }) => ({ label: row.alias, pick, meta: pointsMeta(pick, hasResult) }))];
+  if (hasResult) {
+    const currentAfterRank = afterRank(currentPick);
+    const movedAhead = different.filter(({ pick }) => currentAfterRank !== null && afterRank(pick) !== null && Number(afterRank(pick)) < Number(currentAfterRank));
+    const reached = different.filter(({ pick }) => currentAfterRank !== null && afterRank(pick) !== null && Number(afterRank(pick)) === Number(currentAfterRank));
+    return {
+      text: movedAhead.length
+        ? `Sí pegó la amenaza: ${nameList(movedAhead.map(({ row }) => row.alias))} te pasó con este partido.`
+        : reached.length
+          ? `Te alcanzaron: ${nameList(reached.map(({ row }) => row.alias))} quedó contigo tras este partido.`
+          : different.length
+            ? `Defensa cumplida: ${nameList(different.map(({ row }) => row.alias))} no te pasó en este partido.`
+            : `Traían tu mismo camino; nadie te recortó distancia con este partido.`,
+      picks: previews
+    };
+  }
   return {
     text: different.length
-      ? `Ojo: si fallas y pegan exacto, ${nameList(focus.map(({ row }) => row.alias))} te puede pasar o alcanzar.`
+      ? `Supuesto: si fallas y ${nameList(focus.map(({ row }) => row.alias))} pega exacto, te puede pasar o alcanzar.`
       : `Traen tu mismo camino: ${nameList(focus.map(({ row }) => row.alias))} no te recorta si todos suman igual.`,
-    picks: [{ label: 'Tu pick', pick: currentPick, isSelf: true }, ...focus.map(({ row, pick }) => ({ label: row.alias, pick }))]
+    picks: previews
   };
 }
 
-function topThreeLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[]): PlayMessage | '' {
+function topThreeLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[], hasResult: boolean): PlayMessage | '' {
   const topRows = standings.slice(0, 3);
   const topPicks = topRows
     .map((row) => ({ row, pick: picks.find((pick) => pick.player_id === row.player_id) }))
@@ -774,14 +831,28 @@ function topThreeLabel(current: Standing, currentPick: MatchPick, picks: MatchPi
   const differentOutcomes = new Set(topPicks.map(({ pick }) => pickOutcomeKey(pick))).size > 1;
   const text = currentInTop
     ? differentOutcomes
-      ? 'Estás en el Top 3; tu pick va marcado para ver quién se separa.'
-      : 'El Top 3 va alineado; tu pick va marcado.'
+      ? `${hasResult ? 'Antes del partido estabas' : 'Estás'} en el Top 3; tu pick va marcado para ver quién se separa.`
+      : `El Top 3 ${hasResult ? 'de ese momento iba' : 'va'} alineado; tu pick va marcado.`
     : sameTop.length
-      ? `Traes el mismo camino que ${nameList(sameTop.map(({ row }) => row.alias))}; mira cómo viene el Top 3.`
-      : 'Vas contra el Top 3; estos son sus caminos.';
-  const previews = topPicks.map(({ row, pick }) => ({ label: row.player_id === current.player_id ? 'Tu pick' : row.alias, pick, isSelf: row.player_id === current.player_id }));
-  if (!currentInTop) previews.unshift({ label: 'Tu pick', pick: currentPick, isSelf: true });
+      ? hasResult
+        ? `Traías el mismo camino que ${nameList(sameTop.map(({ row }) => row.alias))}; este era el Top 3 de ese momento.`
+        : `Traes el mismo camino que ${nameList(sameTop.map(({ row }) => row.alias))}; mira cómo viene el Top 3.`
+      : `${hasResult ? 'Ibas' : 'Vas'} contra el Top 3; estos son sus caminos.`;
+  const previews: PlayPickPreview[] = topPicks.map(({ row, pick }) => ({ label: row.player_id === current.player_id ? 'Tu pick' : row.alias, pick, isSelf: row.player_id === current.player_id, meta: pointsMeta(pick, hasResult), rank: Number(row.rank) }));
+  if (!currentInTop) previews.push({ label: `Tu pick #${current.rank}`, pick: currentPick, isSelf: true, meta: pointsMeta(currentPick, hasResult) });
   return { text, picks: previews };
+}
+
+function rowPick(picks: MatchPick[], playerId: string) {
+  return picks.find((pick) => pick.player_id === playerId);
+}
+
+function afterRank(pick?: MatchPick) {
+  return pick?.rank ?? null;
+}
+
+function pointsMeta(pick: MatchPick | Pick, hasResult: boolean) {
+  return hasResult && 'points' in pick ? `+${pick.points}` : undefined;
 }
 
 function nameList(names: string[]) {
@@ -1115,6 +1186,60 @@ function RankMovement({ delta }: { delta: number }) {
   </span>;
 }
 
+function Podium({ standings, player }: { standings: Standing[]; player: Player }) {
+  const podiumRows = [standings[1], standings[0], standings[2]];
+  const configs = [
+    { rank: 2, label: 'Plata', height: 'h-20', accent: 'bg-slate-300', text: 'text-slate-700', ring: 'ring-slate-200', Icon: Medal },
+    { rank: 1, label: 'Líder', height: 'h-28', accent: 'bg-triondaGold', text: 'text-slate-950', ring: 'ring-amber-200', Icon: Crown },
+    { rank: 3, label: 'Bronce', height: 'h-16', accent: 'bg-[#C98B58]', text: 'text-slate-800', ring: 'ring-orange-200', Icon: Medal }
+  ];
+
+  return (
+    <section className="mb-6 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-md shadow-slate-200/60">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Podio actual</div>
+          <div className="mt-0.5 text-sm font-black text-slate-950">Los tres de arriba</div>
+        </div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 text-triondaGold shadow-md shadow-slate-300/70">
+          <Trophy size={20} strokeWidth={2.8} />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 items-end gap-2 text-center">
+        {podiumRows.map((row, index) => {
+          const config = configs[index];
+          const isCurrentPlayer = row?.player_id === player.id;
+          const Icon = config.Icon;
+          return (
+            <div key={row?.player_id || config.rank} className="podium-rise min-w-0" style={{ animationDelay: `${index * 90}ms` }}>
+              <div className={`relative overflow-hidden rounded-lg border bg-slate-50 shadow-sm shadow-slate-200/70 ${isCurrentPlayer ? 'border-pitch ring-2 ring-pitch/20' : 'border-slate-200'}`}>
+                <div className={`h-1.5 ${config.accent}`} />
+                <div className="px-2 py-3">
+                  <div className={`mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm ring-2 ${config.ring} ${config.text} ${config.rank === 1 ? 'podium-pulse' : ''}`}>
+                    <Icon size={18} strokeWidth={2.8} />
+                  </div>
+                  <div className="mt-2 flex min-h-10 flex-col items-center justify-center">
+                    <b className="max-w-full truncate text-sm leading-5 text-slate-950">{row?.alias || '-'}</b>
+                    <span className="mt-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">{config.label}</span>
+                  </div>
+                </div>
+                <div className={`mx-2 flex ${config.height} flex-col items-center justify-end rounded-t-lg ${config.accent} px-1 pb-3 text-white shadow-inner`}>
+                  <span className="text-[10px] font-black uppercase tracking-[0.08em] opacity-80">Pts</span>
+                  <b className="text-2xl leading-7">{row ? row.points : 0}</b>
+                </div>
+                <div className={`flex items-center justify-center gap-1 bg-slate-100 py-1.5 text-xs font-black ${config.text}`}>
+                  <span>#{row?.rank || config.rank}</span>
+                  {row && <RankMovement delta={row.rank_delta} />}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function TableView({ standings, matches, player }: { standings: Standing[]; matches: Match[]; player: Player }) {
   const [view, setView] = useState<'ranking' | 'match'>('ranking');
   const [selected, setSelected] = useState('');
@@ -1145,19 +1270,7 @@ function TableView({ standings, matches, player }: { standings: Standing[]; matc
       </div>
 
       {view === 'ranking' && <>
-      {standings.length > 0 && <div className="mb-6 grid grid-cols-3 items-end gap-2 text-center">
-        {[standings[1], standings[0], standings[2]].map((row, index) => {
-          const heights = ['h-20', 'h-28', 'h-16'];
-          const colors = ['bg-slate-400', 'bg-triondaGold', 'bg-[#B87333]'];
-          return <div key={row?.player_id || index} className="min-w-0">
-            <div className="truncate text-sm font-black text-slate-950">{row?.alias || '-'}</div>
-            <div className={`mt-2 flex ${heights[index]} items-start justify-center rounded-t-lg ${colors[index]} pt-3 text-2xl font-black text-white`}>
-              {row ? row.points : 0}
-            </div>
-            <div className="bg-slate-100 py-1 text-xs font-black text-pitch">#{row?.rank || '-'}</div>
-          </div>;
-        })}
-      </div>}
+      {standings.length > 0 && <Podium standings={standings} player={player} />}
       <div className="overflow-hidden rounded-lg bg-white border border-slate-200 shadow-md shadow-slate-200/60">
         <div className="grid grid-cols-[34px_minmax(0,1fr)_52px_48px_54px] gap-2 bg-pitch px-3 py-3 text-xs font-black text-white sm:text-sm">
           <span>#</span><span>Jugador</span><span className="text-right">Pts</span><span className="text-right">Res.</span><span className="text-right">Exact.</span>

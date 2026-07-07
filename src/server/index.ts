@@ -353,16 +353,19 @@ app.get('/api/matches/:matchId/picks', async (req, res) => {
     { match_id: req.params.matchId }
   );
 
-  let historicalRanks = new Map<string, { rank: number; rank_delta: number }>();
+  let historicalRanks = new Map<string, { rank: number; rank_delta: number; rank_before: number; points_before: number; points_after: number }>();
   if (selectedMatch?.home_goals !== null && selectedMatch?.away_goals !== null) {
     const [afterRows, beforeRows] = await Promise.all([
       standingRowsThroughMatch(selectedMatch, true),
       standingRowsThroughMatch(selectedMatch, false)
     ]);
-    const beforeRanks = new Map(beforeRows.map((row) => [row.player_id, row.rank]));
+    const beforeStats = new Map(beforeRows.map((row) => [row.player_id, row]));
     historicalRanks = new Map(afterRows.map((row) => [row.player_id, {
       rank: row.rank,
-      rank_delta: (beforeRanks.get(row.player_id) || row.rank) - row.rank
+      rank_delta: (beforeStats.get(row.player_id)?.rank || row.rank) - row.rank,
+      rank_before: beforeStats.get(row.player_id)?.rank || row.rank,
+      points_before: Number(beforeStats.get(row.player_id)?.points || 0),
+      points_after: Number(row.points || 0)
     }]));
   }
 
@@ -373,7 +376,10 @@ app.get('/api/matches/:matchId/picks', async (req, res) => {
     away_goals: row.away_goals,
     points: scorePick(row.home_goals, row.away_goals, row.real_home_goals, row.real_away_goals).points,
     rank: historicalRanks.get(row.player_id)?.rank || null,
-    rank_delta: historicalRanks.get(row.player_id)?.rank_delta || 0
+    rank_delta: historicalRanks.get(row.player_id)?.rank_delta || 0,
+    rank_before: historicalRanks.get(row.player_id)?.rank_before || null,
+    points_before: historicalRanks.get(row.player_id)?.points_before ?? null,
+    points_after: historicalRanks.get(row.player_id)?.points_after ?? null
   })));
 });
 
