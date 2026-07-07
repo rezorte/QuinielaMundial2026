@@ -743,10 +743,11 @@ function attackLabel(current: Standing, currentPick: MatchPick, picks: MatchPick
     const possibleRank = standings.filter((row) => row.player_id !== current.player_id && Number(row.points) >= currentMax).length + 1;
     if (hasResult) {
       const passed = differentRivals.filter(({ row }) => afterRank(currentPick) !== null && afterRank(rowPick(picks, row.player_id)) !== null && Number(afterRank(currentPick)) < Number(afterRank(rowPick(picks, row.player_id))));
+      const assumption = `Supuesto: con exacto y que ${nameList(differentRivals.map(({ row }) => row.alias))} sumaran menos que tú, podías subir hacia #${possibleRank}.`;
       return {
         text: passed.length
-          ? `Se logró: con este partido pasaste a ${nameList(passed.map(({ row }) => row.alias))}.`
-          : `No se dio: necesitabas sumar más que ${nameList(differentRivals.map(({ row }) => row.alias))} para subir hacia #${possibleRank}.`,
+          ? `${assumption} Se logró: con este partido pasaste a ${nameList(passed.map(({ row }) => row.alias))}.`
+          : `${assumption} No se dio: no sumaste lo suficiente para pasar a ${nameList(differentRivals.map(({ row }) => row.alias))}.`,
         picks: previews
       };
     }
@@ -771,7 +772,7 @@ function attackLabel(current: Standing, currentPick: MatchPick, picks: MatchPick
   if (!nextAbove || !nextPick) return '';
   return {
     text: hasResult
-      ? `Contexto: este partido no alcanzaba para pasarlo, pero sí podía acercarte a ${nextAbove.alias}.`
+      ? `Supuesto: si sumabas más que ${nextAbove.alias}, podías acercarte. Resultado: revisa los puntos de este partido para ver si recortaste distancia.`
       : samePick(currentPick, nextPick)
         ? `Traes el mismo pick que ${nextAbove.alias}; este partido mantiene la distancia si ambos suman igual.`
         : `Si aciertas y ${nextAbove.alias} no, te acercas en la tabla.`,
@@ -801,14 +802,17 @@ function defenseLabel(current: Standing, currentPick: MatchPick, picks: MatchPic
     const currentAfterRank = afterRank(currentPick);
     const movedAhead = different.filter(({ pick }) => currentAfterRank !== null && afterRank(pick) !== null && Number(afterRank(pick)) < Number(currentAfterRank));
     const reached = different.filter(({ pick }) => currentAfterRank !== null && afterRank(pick) !== null && Number(afterRank(pick)) === Number(currentAfterRank));
+    const assumption = different.length
+      ? `Supuesto: si fallabas y ${nameList(different.map(({ row }) => row.alias))} pegaba exacto, te podía pasar o alcanzar.`
+      : `Supuesto: traían tu mismo pick, así que no podían recortarte si todos sumaban igual.`;
     return {
       text: movedAhead.length
-        ? `Sí pegó la amenaza: ${nameList(movedAhead.map(({ row }) => row.alias))} te pasó con este partido.`
+        ? `${assumption} Sí pegó la amenaza: ${nameList(movedAhead.map(({ row }) => row.alias))} te pasó con este partido.`
         : reached.length
-          ? `Te alcanzaron: ${nameList(reached.map(({ row }) => row.alias))} quedó contigo tras este partido.`
+          ? `${assumption} Te alcanzaron: ${nameList(reached.map(({ row }) => row.alias))} quedó contigo tras este partido.`
           : different.length
-            ? `Defensa cumplida: ${nameList(different.map(({ row }) => row.alias))} no te pasó en este partido.`
-            : `Traían tu mismo camino; nadie te recortó distancia con este partido.`,
+            ? `${assumption} Defensa cumplida: ${nameList(different.map(({ row }) => row.alias))} no te pasó en este partido.`
+            : `${assumption} Nadie te recortó distancia con este partido.`,
       picks: previews
     };
   }
