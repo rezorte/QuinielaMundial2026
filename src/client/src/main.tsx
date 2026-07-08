@@ -619,7 +619,7 @@ function MatchPicksPanel({ match }: { match: Match }) {
         {picks.length > 0 && <FamilyTrendSummary match={match} picks={picks} />}
         {picks.length > 0 && <div className="border-t border-slate-100">
           <div className="bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Lista familiar</div>
-          {picks.map((row) => <div key={row.player_id} className="grid grid-cols-[minmax(0,1fr)_104px_50px] items-center gap-2 border-t border-slate-100 px-3 py-2 first:border-t-0">
+          {picks.map((row) => <div key={row.player_id} className="grid grid-cols-[minmax(0,1fr)_118px_50px] items-center gap-2 border-t border-slate-100 px-3 py-2 first:border-t-0">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-1.5">
                 <b className="truncate text-sm">{row.alias}</b>
@@ -627,7 +627,11 @@ function MatchPicksPanel({ match }: { match: Match }) {
               </div>
               <PickBadges pick={row} picks={picks} match={match} />
             </div>
-            <div className="justify-self-end"><FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={row.home_goals} awayGoals={row.away_goals} size="xs" /></div>
+            <div className="justify-self-end">
+              <div className="flex flex-col items-end gap-1">
+                <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={row.home_goals} awayGoals={row.away_goals} size="xs" firstGoal={isBonusMatch(match) ? effectiveFirstGoal(row.home_goals, row.away_goals, row.first_goal_pick) : null} advance={isBonusMatch(match) && isDrawScore(row.home_goals, row.away_goals) ? row.advance_pick || null : null} />
+              </div>
+            </div>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-center text-xs font-black text-pitch">{row.points}</span>
           </div>)}
         </div>}
@@ -714,7 +718,7 @@ function messageText(message: string | PlayMessage) {
 }
 
 function PickScoreBadge({ match, pick }: { match: Match; pick: MatchPick }) {
-  return <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={pick.home_goals} awayGoals={pick.away_goals} size="xs" />;
+  return <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={pick.home_goals} awayGoals={pick.away_goals} size="xs" firstGoal={isBonusMatch(match) ? effectiveFirstGoal(pick.home_goals, pick.away_goals, pick.first_goal_pick) : null} advance={isBonusMatch(match) && isDrawScore(pick.home_goals, pick.away_goals) ? pick.advance_pick || null : null} />;
 }
 
 function PickPreview({ match, item }: { match: Match; item: PlayPickPreview }) {
@@ -723,22 +727,35 @@ function PickPreview({ match, item }: { match: Match; item: PlayPickPreview }) {
     <div className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 shadow-sm shadow-slate-200/60 ${item.isSelf ? 'bg-emerald-50 ring-1 ring-pitch/30' : 'bg-white'}`}>
       {item.rank && <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black ${rankClass}`}>#{item.rank}</span>}
       <span className={`max-w-[132px] truncate text-[10px] font-black uppercase tracking-[0.08em] ${item.isSelf ? 'text-pitch' : 'text-slate-400'}`}>{item.label}</span>
-      {item.pick && <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={item.pick.home_goals} awayGoals={item.pick.away_goals} size="xs" />}
+      {item.pick && <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={item.pick.home_goals} awayGoals={item.pick.away_goals} size="xs" firstGoal={isBonusMatch(match) ? effectiveFirstGoal(item.pick.home_goals, item.pick.away_goals, item.pick.first_goal_pick) : null} advance={isBonusMatch(match) && isDrawScore(item.pick.home_goals, item.pick.away_goals) ? item.pick.advance_pick || null : null} />}
       {item.meta && <span className="text-[10px] font-black text-slate-400">{item.meta}</span>}
     </div>
   );
 }
 
-function FlagScore({ homeFlag, awayFlag, homeGoals, awayGoals, size = 'sm' }: { homeFlag: string; awayFlag: string; homeGoals: number | string; awayGoals: number | string; size?: 'xs' | 'sm' | 'md' }) {
+function FlagScore({ homeFlag, awayFlag, homeGoals, awayGoals, size = 'sm', firstGoal = null, advance = null }: { homeFlag: string; awayFlag: string; homeGoals: number | string; awayGoals: number | string; size?: 'xs' | 'sm' | 'md'; firstGoal?: FirstGoalPick | null; advance?: BonusSide | null }) {
   const flagSize = size === 'md' ? 'h-4 w-6' : size === 'xs' ? 'h-3 w-4' : 'h-3.5 w-5';
   const textSize = size === 'md' ? 'text-sm' : 'text-xs';
+  const ballSize = size === 'md' ? 'h-3.5 w-3.5 text-[9px]' : 'h-3 w-3 text-[8px]';
+  const flagWithBadges = (flag: string, side: 'H' | 'A') => (
+    <span className="relative inline-flex">
+      <img src={flagUrl(flag)} alt="" className={`${flagSize} rounded-sm object-cover shadow-sm`} />
+      {advance === side && <span className={`absolute -left-1 -top-1 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white leading-none shadow-sm ring-1 ring-white ${ballSize}`}>✓</span>}
+    </span>
+  );
+  const scoreWithBall = (goals: number | string, side: 'H' | 'A') => (
+    <span className="relative inline-flex min-w-[0.7rem] justify-center">
+      <span>{goals}</span>
+      {firstGoal === side && <span className={`absolute -right-2 -top-2 inline-flex items-center justify-center rounded-full bg-white leading-none shadow-sm ring-1 ring-slate-200 ${ballSize}`}>⚽</span>}
+    </span>
+  );
   return (
     <div className={`inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-2 py-1 font-black text-slate-950 shadow-sm shadow-slate-200/60 ${textSize}`}>
-      <img src={flagUrl(homeFlag)} alt="" className={`${flagSize} rounded-sm object-cover shadow-sm`} />
-      <span>{homeGoals}</span>
+      {flagWithBadges(homeFlag, 'H')}
+      {scoreWithBall(homeGoals, 'H')}
       <span className="text-slate-300">-</span>
-      <span>{awayGoals}</span>
-      <img src={flagUrl(awayFlag)} alt="" className={`${flagSize} rounded-sm object-cover shadow-sm`} />
+      {scoreWithBall(awayGoals, 'A')}
+      {flagWithBadges(awayFlag, 'A')}
     </div>
   );
 }
@@ -1535,7 +1552,7 @@ function TableView({ standings, matches, player }: { standings: Standing[]; matc
         </div>
         <div className="mt-3 overflow-hidden rounded-lg border border-slate-100">
           {matchPicks.length === 0 && <div className="p-4 text-center text-sm font-bold text-slate-400">Todavia no hay picks para este partido.</div>}
-          {selectedMatch && matchPicks.map((pick) => <div key={pick.player_id} className="grid grid-cols-[minmax(0,1fr)_112px_58px] items-center gap-2 border-t border-slate-100 px-3 py-3 first:border-t-0">
+          {selectedMatch && matchPicks.map((pick) => <div key={pick.player_id} className="grid grid-cols-[minmax(0,1fr)_128px_58px] items-center gap-2 border-t border-slate-100 px-3 py-3 first:border-t-0">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-1.5">
                 <b className="truncate">{pick.alias}</b>
@@ -1543,7 +1560,11 @@ function TableView({ standings, matches, player }: { standings: Standing[]; matc
               </div>
               {pick.rank && <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Después: #{pick.rank}</span>}
             </div>
-            <div className="justify-self-end"><FlagScore homeFlag={selectedMatch.home_flag} awayFlag={selectedMatch.away_flag} homeGoals={pick.home_goals} awayGoals={pick.away_goals} /></div>
+            <div className="justify-self-end">
+              <div className="flex flex-col items-end gap-1">
+                <FlagScore homeFlag={selectedMatch.home_flag} awayFlag={selectedMatch.away_flag} homeGoals={pick.home_goals} awayGoals={pick.away_goals} firstGoal={isBonusMatch(selectedMatch) ? effectiveFirstGoal(pick.home_goals, pick.away_goals, pick.first_goal_pick) : null} advance={isBonusMatch(selectedMatch) && isDrawScore(pick.home_goals, pick.away_goals) ? pick.advance_pick || null : null} />
+              </div>
+            </div>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-center text-sm font-black text-pitch">{pick.points} pts</span>
           </div>)}
         </div>
