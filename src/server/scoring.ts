@@ -12,12 +12,20 @@ export function scorePick(
   pickAdvance?: string | null,
   realAdvance?: string | null,
   pickFirstGoal?: string | null,
-  realFirstGoal?: string | null
+  realFirstGoal?: string | null,
+  advanceEnabled = false
 ) {
   if (realHome === null || realAway === null) return { points: 0, exact: 0, result: 0, advance: 0, firstGoal: 0 };
   const exact = pickHome === realHome && pickAway === realAway ? 1 : 0;
   const result = exact || outcome(pickHome, pickAway) === outcome(realHome, realAway) ? 1 : 0;
-  const advance = pickAdvance && realAdvance && pickAdvance === realAdvance ? 1 : 0;
-  const firstGoal = pickFirstGoal && realFirstGoal && pickFirstGoal === realFirstGoal ? 1 : 0;
+  const advance = advanceEnabled && pickHome === pickAway && pickAdvance && realAdvance && pickAdvance === realAdvance ? 1 : 0;
+  const firstGoal = effectiveFirstGoal(pickHome, pickAway, pickFirstGoal) === effectiveFirstGoal(realHome, realAway, realFirstGoal) ? 1 : 0;
   return { points: (exact ? 3 : result ? 1 : 0) + advance + firstGoal, exact, result, advance, firstGoal };
+}
+
+function effectiveFirstGoal(home: number, away: number, selected?: string | null) {
+  if (home === 0 && away === 0) return 'N';
+  if (home > 0 && away === 0) return 'H';
+  if (home === 0 && away > 0) return 'A';
+  return selected || null;
 }

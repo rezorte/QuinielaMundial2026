@@ -128,9 +128,60 @@ function outcome(home: number, away: number) {
 function pickPoints(pick: Pick | undefined, match: Match) {
   if (!pick || match.home_goals === null || match.away_goals === null) return null;
   const base = pick.home_goals === match.home_goals && pick.away_goals === match.away_goals ? 3 : outcome(pick.home_goals, pick.away_goals) === outcome(match.home_goals, match.away_goals) ? 1 : 0;
-  const advance = pick.advance_pick && match.advance && pick.advance_pick === match.advance ? 1 : 0;
-  const firstGoal = pick.first_goal_pick && match.first_goal && pick.first_goal_pick === match.first_goal ? 1 : 0;
+  const advance = isBonusMatch(match) && isDrawScore(pick.home_goals, pick.away_goals) && pick.advance_pick && match.advance && pick.advance_pick === match.advance ? 1 : 0;
+  const firstGoalPick = isBonusMatch(match) ? effectiveFirstGoal(pick.home_goals, pick.away_goals, pick.first_goal_pick) : null;
+  const firstGoalResult = isBonusMatch(match) ? effectiveFirstGoal(match.home_goals, match.away_goals, match.first_goal) : null;
+  const firstGoal = firstGoalPick && firstGoalResult && firstGoalPick === firstGoalResult ? 1 : 0;
   return base + advance + firstGoal;
+}
+
+function effectiveFirstGoal(home: number | null, away: number | null, selected?: FirstGoalPick | null): FirstGoalPick | null {
+  if (home === null || away === null) return null;
+  if (home === 0 && away === 0) return 'N';
+  if (home > 0 && away === 0) return 'H';
+  if (home === 0 && away > 0) return 'A';
+  return selected || null;
+}
+
+function isDrawScore(home: number | null | undefined, away: number | null | undefined) {
+  return home !== null && home !== undefined && away !== null && away !== undefined && home === away;
+}
+
+function normalizeBonusPick<T extends Partial<Pick>>(match: Match, pick: T): T {
+  if (!isBonusMatch(match)) return pick;
+  const next = { ...pick };
+  if (!isDrawScore(next.home_goals, next.away_goals)) {
+    next.advance_pick = null;
+  }
+  next.first_goal_pick = effectiveFirstGoal(next.home_goals ?? null, next.away_goals ?? null, next.first_goal_pick ?? null);
+  const firstGoalOptions = firstGoalChoiceOptions(match, next.home_goals ?? null, next.away_goals ?? null);
+  if (next.first_goal_pick && !firstGoalOptions.some((option) => option.value === next.first_goal_pick)) {
+    next.first_goal_pick = null;
+  }
+  return next;
+}
+
+function normalizeResultDraft(match: Match, draft: ResultDraft) {
+  if (!isBonusMatch(match)) return draft;
+  const next = { ...draft };
+  if (!isDrawScore(next.home_goals, next.away_goals)) {
+    next.advance = null;
+  }
+  next.first_goal = effectiveFirstGoal(next.home_goals, next.away_goals, next.first_goal);
+  const firstGoalOptions = firstGoalChoiceOptions(match, next.home_goals, next.away_goals);
+  if (next.first_goal && !firstGoalOptions.some((option) => option.value === next.first_goal)) {
+    next.first_goal = null;
+  }
+  return next;
+}
+
+function firstGoalChoiceOptions(match: Match, home: number | null | undefined, away: number | null | undefined): Array<{ value: FirstGoalPick; label: string; flag?: string }> {
+  if (home === null || home === undefined || away === null || away === undefined) return [];
+  if ((home === 0 && away === 0) || (home > 0 && away === 0) || (home === 0 && away > 0)) return [];
+  return [
+    { value: 'H', label: match.home_name, flag: match.home_flag },
+    { value: 'A', label: match.away_name, flag: match.away_flag }
+  ];
 }
 
 function matchRoundLabel(match?: Match) {
@@ -348,7 +399,7 @@ function FillView({ matches, picks, setPicks, standings, player, showStats, show
   async function savePickPatch(match: Match, patch: Partial<Pick>) {
     if (match.locked) return;
     const current = picks[match.id] || { match_id: match.id, home_goals: 0, away_goals: 0 };
-    const next = { ...current, ...patch };
+    const next = normalizeBonusPick(match, { ...current, ...patch });
     setPicks({ ...picks, [match.id]: next });
     setSaving({ ...saving, [match.id]: true });
     await api.request('/api/picks', { method: 'POST', body: JSON.stringify([next]) }).catch((error) => {
@@ -474,20 +525,74 @@ function MatchCard({ match, allMatches = [], pick, setScore, setPickPatch, force
         <TeamScore name={match.away_name} flag={match.away_flag} value={pick?.away_goals} locked={locked} onMinus={() => setScore(match, 'away_goals', -1)} onPlus={() => setScore(match, 'away_goals', 1)} />
       </div>
       {isBonusMatch(match) && pick && setPickPatch && <KnockoutPickControls match={match} pick={pick} locked={locked} onChange={(patch) => setPickPatch(match, patch)} />}
-      {showPickScores && points !== null && <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
-        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
-          Resultado real:
-        </span>
-        <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={match.home_goals ?? '-'} awayGoals={match.away_goals ?? '-'} size="md" />
-        <span className="hidden text-slate-300 min-[360px]:inline">·</span>
-        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
-          Obtuviste: <span className="font-black text-slate-950">{points} pts</span>
-        </span>
-      </div>}
+      {showPickScores && points !== null && pick && <RealResultSummary match={match} pick={pick} />}
       {showMatchPicks && <PlayerPlayPanel match={match} standings={standings} player={player} />}
       {showMatchPicks && <MatchPicksPanel match={match} />}
       {showStats && <StatsPanel match={match} allMatches={allMatches} />}
     </article>
+  );
+}
+
+function RealResultSummary({ match, pick }: { match: Match; pick: Pick }) {
+  const hasScore = match.home_goals !== null && match.away_goals !== null;
+  const firstGoal = effectiveFirstGoal(match.home_goals, match.away_goals, match.first_goal);
+  const resultPoints = hasScore
+    ? pick.home_goals === match.home_goals && pick.away_goals === match.away_goals
+      ? 3
+      : outcome(pick.home_goals, pick.away_goals) === outcome(match.home_goals!, match.away_goals!)
+        ? 1
+        : 0
+    : 0;
+  const advancePoints = isBonusMatch(match) && isDrawScore(match.home_goals, match.away_goals) && isDrawScore(pick.home_goals, pick.away_goals) && pick.advance_pick && match.advance && pick.advance_pick === match.advance ? 1 : 0;
+  const pickFirstGoal = isBonusMatch(match) ? effectiveFirstGoal(pick.home_goals, pick.away_goals, pick.first_goal_pick) : null;
+  const firstGoalPoints = isBonusMatch(match) && pickFirstGoal && firstGoal && pickFirstGoal === firstGoal ? 1 : 0;
+  const total = resultPoints + advancePoints + firstGoalPoints;
+  const showAdvance = isBonusMatch(match) && isDrawScore(match.home_goals, match.away_goals);
+  return (
+    <div className="mx-4 mb-4 rounded-lg bg-slate-50 p-3 text-sm font-bold text-slate-600">
+      <div className="mb-2 text-center text-sm font-black text-slate-950">
+        Obtuviste: <span className="text-pitch">{total} {total === 1 ? 'punto' : 'puntos'}</span>
+      </div>
+      <div className="space-y-1.5">
+        <ScoreBreakdownRow
+          label="Resultado real"
+          value={<FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={match.home_goals ?? '-'} awayGoals={match.away_goals ?? '-'} size="md" />}
+          points={resultPoints}
+        />
+        {hasScore && showAdvance && <ScoreBreakdownRow
+          label="Clasificó"
+          value={<RealBonusValue value={match.advance} match={match} fallback="Pendiente" />}
+          points={advancePoints}
+        />}
+        {hasScore && isBonusMatch(match) && <ScoreBreakdownRow
+          label="Primer gol"
+          value={<RealBonusValue value={firstGoal} match={match} fallback="Pendiente" />}
+          points={firstGoalPoints}
+        />}
+      </div>
+    </div>
+  );
+}
+
+function ScoreBreakdownRow({ label, value, points }: { label: string; value: React.ReactNode; points: number }) {
+  return (
+    <div className="grid grid-cols-[92px_minmax(0,1fr)_46px] items-center gap-2 rounded-lg bg-white px-2.5 py-2 shadow-sm shadow-slate-200/50">
+      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-400">{label}</span>
+      <div className="min-w-0">{value}</div>
+      <span className={`text-right text-sm font-black ${points > 0 ? 'text-pitch' : 'text-slate-400'}`}>+{points}</span>
+    </div>
+  );
+}
+
+function RealBonusValue({ value, match, fallback }: { value: FirstGoalPick | BonusSide | null; match: Match; fallback: string }) {
+  const team = value === 'H' ? { name: match.home_name, flag: match.home_flag } : value === 'A' ? { name: match.away_name, flag: match.away_flag } : null;
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-slate-50 px-2 py-1 text-xs font-black text-slate-600">
+      {team ? <>
+        <img src={flagUrl(team.flag)} alt="" className="h-3.5 w-5 rounded-sm object-cover shadow-sm" />
+        <span className="truncate text-slate-950">{team.name}</span>
+      </> : <span className="text-slate-950">{value === 'N' ? 'Sin gol' : fallback}</span>}
+    </span>
   );
 }
 
@@ -1229,11 +1334,14 @@ function TeamScore({ name, flag, value, locked, onMinus, onPlus }: { name: strin
 }
 
 function KnockoutPickControls({ match, pick, locked, onChange }: { match: Match; pick: Pick; locked: boolean; onChange: (patch: Partial<Pick>) => void }) {
+  const needsAdvance = isDrawScore(pick.home_goals, pick.away_goals);
+  const firstGoalAuto = effectiveFirstGoal(pick.home_goals, pick.away_goals, null);
+  const firstGoalOptions = firstGoalChoiceOptions(match, pick.home_goals, pick.away_goals);
   return (
     <div className="mx-4 mb-4 rounded-lg border border-slate-100 bg-slate-50 p-3">
       <div className="grid gap-3 min-[520px]:grid-cols-2">
-        <BonusChoiceGroup
-          label="Clasifica"
+        {needsAdvance ? <BonusChoiceGroup
+          label="¿Quién clasifica?"
           options={[
             { value: 'H', label: match.home_name, flag: match.home_flag },
             { value: 'A', label: match.away_name, flag: match.away_flag }
@@ -1241,31 +1349,54 @@ function KnockoutPickControls({ match, pick, locked, onChange }: { match: Match;
           value={pick.advance_pick || null}
           locked={locked}
           onChange={(value) => onChange({ advance_pick: value as BonusSide })}
-        />
-        <BonusChoiceGroup
-          label="Primer gol"
-          options={[
-            { value: 'H', label: match.home_name, flag: match.home_flag },
-            { value: 'A', label: match.away_name, flag: match.away_flag },
-            { value: 'N', label: 'Sin gol' }
-          ]}
+        /> : <div className="rounded-lg bg-white px-3 py-2 text-xs font-bold leading-5 text-slate-500">
+          <b className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">¿Quién clasifica?</b>
+          Solo aplica si tu marcador queda empatado.
+        </div>}
+        {firstGoalAuto ? <AutoBonusValue
+          label="¿Quién anota el primer gol?"
+          value={firstGoalAuto}
+          homeName={match.home_name}
+          homeFlag={match.home_flag}
+          awayName={match.away_name}
+          awayFlag={match.away_flag}
+        /> : <BonusChoiceGroup
+          label="¿Quién anota el primer gol?"
+          options={firstGoalOptions}
           value={pick.first_goal_pick || null}
           locked={locked}
           onChange={(value) => onChange({ first_goal_pick: value as FirstGoalPick })}
-        />
+        />}
       </div>
+    </div>
+  );
+}
+
+function AutoBonusValue({ label, value, homeName, homeFlag, awayName, awayFlag }: { label: string; value: FirstGoalPick; homeName: string; homeFlag: string; awayName: string; awayFlag: string }) {
+  const team = value === 'H' ? { name: homeName, flag: homeFlag } : value === 'A' ? { name: awayName, flag: awayFlag } : null;
+  return (
+    <div className="rounded-lg bg-white p-2 shadow-sm shadow-slate-200/70 ring-1 ring-slate-200/70">
+      <b className="mb-2 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label} · +1</b>
+      <span className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-center text-slate-700">
+        {team ? <>
+          <img src={flagUrl(team.flag)} alt="" className="h-7 w-10 rounded-sm object-cover shadow-sm" />
+          <span className="line-clamp-2 max-w-full text-sm font-black leading-4">{team.name}</span>
+        </> : <span className="line-clamp-2 max-w-full text-sm font-black leading-4">Sin gol</span>}
+      </span>
     </div>
   );
 }
 
 function BonusChoiceGroup({ label, options, value, locked, onChange }: { label: string; options: Array<{ value: string; label: string; flag?: string }>; value: string | null; locked: boolean; onChange: (value: string) => void }) {
   return (
-    <div>
-      <div className="mb-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">{label} · +1</div>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((option) => <button key={option.value} disabled={locked} onClick={() => onChange(option.value)} className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black shadow-sm disabled:opacity-50 ${value === option.value ? 'bg-slate-950 text-white' : 'bg-white text-slate-500'}`}>
-          {option.flag && <img src={flagUrl(option.flag)} alt="" className="h-3.5 w-5 rounded-sm object-cover" />}
-          <span className="max-w-[96px] truncate">{option.label}</span>
+    <div className="rounded-lg bg-white p-2 shadow-sm shadow-slate-200/70 ring-1 ring-slate-200/70">
+      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label} · +1</div>
+      <div className="grid grid-cols-2 gap-2">
+        {options.map((option) => <button key={option.value} disabled={locked} onClick={() => onChange(option.value)} className={`min-h-20 rounded-lg border px-2 py-2 text-center shadow-sm transition disabled:opacity-50 ${value === option.value ? 'border-slate-950 bg-slate-950 text-white shadow-slate-300/80' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white'}`}>
+          <span className="flex h-full flex-col items-center justify-center gap-1.5">
+            {option.flag && <img src={flagUrl(option.flag)} alt="" className="h-7 w-10 rounded-sm object-cover shadow-sm" />}
+            <span className="line-clamp-2 max-w-full text-sm font-black leading-4">{option.label}</span>
+          </span>
         </button>)}
       </div>
     </div>
@@ -1384,7 +1515,7 @@ function TableView({ standings, matches, player }: { standings: Standing[]; matc
         </div>;
         })}
       </div>
-      <p className="mt-5 text-center text-sm leading-6 text-slate-500">1 punto por resultado · 3 por exacto · en cuartos +1 clasifica y +1 primer gol.</p>
+      <p className="mt-5 text-center text-sm leading-6 text-slate-500">1 punto por resultado · 3 por exacto · en cuartos +1 primer gol y +1 clasifica solo si tu marcador es empate.</p>
       </>}
 
       {view === 'match' && <section className="rounded-lg bg-white p-4 border border-slate-200 shadow-md shadow-slate-200/60">
@@ -1485,7 +1616,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
 
   async function saveDraftPatch(match: Match, patch: Partial<Pick>) {
     const current = draft[match.id] || { match_id: match.id, home_goals: 0, away_goals: 0 };
-    const next = { ...current, ...patch };
+    const next = normalizeBonusPick(match, { ...current, ...patch });
     setDraft({ ...draft, [match.id]: next });
     if (selected) {
       await admin(`/api/admin/picks/${selected}`, { method: 'PUT', body: JSON.stringify([next]) });
@@ -1496,22 +1627,26 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     const current = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals, advance: match.advance, first_goal: match.first_goal };
     const currentValue = current[side];
     const nextValue = currentValue === null ? 0 : Math.max(0, currentValue + delta);
-    setResultDraft({ ...resultDraft, [match.id]: { ...current, [side]: nextValue } });
+    setResultDraft({ ...resultDraft, [match.id]: normalizeResultDraft(match, { ...current, [side]: nextValue }) });
   }
 
   function changeResultBonus(match: Match, patch: Partial<ResultDraft>) {
     const current = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals, advance: match.advance, first_goal: match.first_goal };
-    setResultDraft({ ...resultDraft, [match.id]: { ...current, ...patch } });
+    setResultDraft({ ...resultDraft, [match.id]: normalizeResultDraft(match, { ...current, ...patch }) });
   }
 
   async function saveResult(match: Match) {
-    const current = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals, advance: match.advance, first_goal: match.first_goal };
+    const current = normalizeResultDraft(match, resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals, advance: match.advance, first_goal: match.first_goal });
     if (current.home_goals === null || current.away_goals === null) {
       alert('Captura los dos marcadores antes de guardar.');
       return;
     }
-    if (isBonusMatch(match) && (!current.advance || !current.first_goal)) {
-      alert('Captura quien clasifica y quien anota primero.');
+    if (isBonusMatch(match) && isDrawScore(current.home_goals, current.away_goals) && !current.advance) {
+      alert('Captura quien clasifica.');
+      return;
+    }
+    if (isBonusMatch(match) && !effectiveFirstGoal(current.home_goals, current.away_goals, current.first_goal)) {
+      alert('Captura quien anota primero.');
       return;
     }
     await admin('/api/admin/result', { method: 'POST', body: JSON.stringify(current) });
@@ -1565,7 +1700,13 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   const resultMatches = matches
     .filter((match) => localDateKey(match.kickoff_utc) === resultDate);
   const matchFinishedGraceMs = 2 * 60 * 60 * 1000;
-  const missingResultMatches = matches.filter((match) => new Date(match.kickoff_utc).getTime() + matchFinishedGraceMs <= Date.now() && (match.home_goals === null || match.away_goals === null || (isBonusMatch(match) && (!match.advance || !match.first_goal))));
+  const missingResultMatches = matches.filter((match) => {
+    const finished = new Date(match.kickoff_utc).getTime() + matchFinishedGraceMs <= Date.now();
+    const missingScore = match.home_goals === null || match.away_goals === null;
+    const missingAdvance = isBonusMatch(match) && isDrawScore(match.home_goals, match.away_goals) && !match.advance;
+    const missingFirstGoal = isBonusMatch(match) && !effectiveFirstGoal(match.home_goals, match.away_goals, match.first_goal);
+    return finished && (missingScore || missingAdvance || missingFirstGoal);
+  });
   const missingResultDays = Array.from(new Set(missingResultMatches.map((match) => localDateKey(match.kickoff_utc))));
 
   function goToMissingResults(day: string) {
@@ -1713,9 +1854,12 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
         </section>
         {resultMatches.length === 0 && <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm font-bold text-slate-400">No hay partidos en esta fecha.</div>}
         {resultMatches.map((match) => {
-          const p: ResultDraft = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals, advance: match.advance, first_goal: match.first_goal };
+          const p: ResultDraft = normalizeResultDraft(match, resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals, advance: match.advance, first_goal: match.first_goal });
           const dirty = p.home_goals !== match.home_goals || p.away_goals !== match.away_goals || p.advance !== match.advance || p.first_goal !== match.first_goal;
-          const canSave = p.home_goals !== null && p.away_goals !== null && (!isBonusMatch(match) || Boolean(p.advance && p.first_goal));
+          const resultIsDraw = isDrawScore(p.home_goals, p.away_goals);
+          const resultFirstGoal = effectiveFirstGoal(p.home_goals, p.away_goals, p.first_goal);
+          const resultFirstGoalOptions = firstGoalChoiceOptions(match, p.home_goals, p.away_goals);
+          const canSave = p.home_goals !== null && p.away_goals !== null && (!isBonusMatch(match) || Boolean(resultFirstGoal && (!resultIsDraw || p.advance)));
           return <article key={match.id} className="rounded-lg bg-white p-3 border border-slate-200 shadow-md shadow-slate-200/60">
             <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{matchRoundLabel(match)} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</div>
             <div className="grid grid-cols-2 gap-3">
@@ -1739,8 +1883,8 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
             </div>
             {isBonusMatch(match) && <div className="mt-3 rounded-lg bg-slate-50 p-3">
               <div className="grid gap-3 min-[520px]:grid-cols-2">
-                <BonusChoiceGroup
-                  label="Clasifica"
+                {resultIsDraw ? <BonusChoiceGroup
+                  label="¿Quién clasifica?"
                   options={[
                     { value: 'H', label: match.home_name, flag: match.home_flag },
                     { value: 'A', label: match.away_name, flag: match.away_flag }
@@ -1748,18 +1892,24 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
                   value={p.advance || null}
                   locked={false}
                   onChange={(value) => changeResultBonus(match, { advance: value as BonusSide })}
-                />
-                <BonusChoiceGroup
-                  label="Primer gol"
-                  options={[
-                    { value: 'H', label: match.home_name, flag: match.home_flag },
-                    { value: 'A', label: match.away_name, flag: match.away_flag },
-                    { value: 'N', label: 'Sin gol' }
-                  ]}
+                /> : <div className="rounded-lg bg-white px-3 py-2 text-xs font-bold leading-5 text-slate-500">
+                  <b className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">¿Quién clasifica?</b>
+                  Solo aplica si el marcador queda empatado.
+                </div>}
+                {resultFirstGoal ? <AutoBonusValue
+                  label="¿Quién anota el primer gol?"
+                  value={resultFirstGoal}
+                  homeName={match.home_name}
+                  homeFlag={match.home_flag}
+                  awayName={match.away_name}
+                  awayFlag={match.away_flag}
+                /> : <BonusChoiceGroup
+                  label="¿Quién anota el primer gol?"
+                  options={resultFirstGoalOptions}
                   value={p.first_goal || null}
                   locked={false}
                   onChange={(value) => changeResultBonus(match, { first_goal: value as FirstGoalPick })}
-                />
+                />}
               </div>
             </div>}
             <div className="mt-3 grid grid-cols-2 gap-2">
