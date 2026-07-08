@@ -736,26 +736,31 @@ function PickPreview({ match, item }: { match: Match; item: PlayPickPreview }) {
 function FlagScore({ homeFlag, awayFlag, homeGoals, awayGoals, size = 'sm', firstGoal = null, advance = null }: { homeFlag: string; awayFlag: string; homeGoals: number | string; awayGoals: number | string; size?: 'xs' | 'sm' | 'md'; firstGoal?: FirstGoalPick | null; advance?: BonusSide | null }) {
   const flagSize = size === 'md' ? 'h-4 w-6' : size === 'xs' ? 'h-3 w-4' : 'h-3.5 w-5';
   const textSize = size === 'md' ? 'text-sm' : 'text-xs';
-  const ballSize = size === 'md' ? 'h-3.5 w-3.5 text-[9px]' : 'h-3 w-3 text-[8px]';
-  const flagWithBadges = (flag: string, side: 'H' | 'A') => (
-    <span className="relative inline-flex">
-      <img src={flagUrl(flag)} alt="" className={`${flagSize} rounded-sm object-cover shadow-sm`} />
-      {advance === side && <span className={`absolute -left-1 -top-1 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white leading-none shadow-sm ring-1 ring-white ${ballSize}`}>✓</span>}
-    </span>
-  );
-  const scoreWithBall = (goals: number | string, side: 'H' | 'A') => (
-    <span className="relative inline-flex min-w-[0.7rem] justify-center">
-      <span>{goals}</span>
-      {firstGoal === side && <span className={`absolute -right-2 -top-2 inline-flex items-center justify-center rounded-full bg-white leading-none shadow-sm ring-1 ring-slate-200 ${ballSize}`}>⚽</span>}
-    </span>
-  );
+  const iconSize = size === 'md' ? 'text-[11px] leading-3' : 'text-[9px] leading-3';
+  const hasIndicators = firstGoal === 'H' || firstGoal === 'A' || advance === 'H' || advance === 'A';
+  const gridCols = 'grid-cols-[auto_minmax(0,0.8rem)_0.4rem_minmax(0,0.8rem)_auto]';
+  const flag = (flagCode: string) => <img src={flagUrl(flagCode)} alt="" className={`${flagSize} rounded-sm object-cover shadow-sm`} />;
+  const indicator = (side: 'H' | 'A', target: 'flag' | 'score') => {
+    if (target === 'flag' && advance === side) return <span className={`inline-flex items-center justify-center rounded-full bg-emerald-500 font-black text-white shadow-sm ${size === 'md' ? 'h-3.5 w-3.5 text-[9px]' : 'h-3 w-3 text-[8px]'}`}>✓</span>;
+    if (target === 'score' && firstGoal === side) return <span className={`${iconSize}`}>⚽</span>;
+    return <span className={`${iconSize}`}>&nbsp;</span>;
+  };
   return (
-    <div className={`inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-2 py-1 font-black text-slate-950 shadow-sm shadow-slate-200/60 ${textSize}`}>
-      {flagWithBadges(homeFlag, 'H')}
-      {scoreWithBall(homeGoals, 'H')}
-      <span className="text-slate-300">-</span>
-      {scoreWithBall(awayGoals, 'A')}
-      {flagWithBadges(awayFlag, 'A')}
+    <div className={`inline-flex max-w-full flex-col rounded-full bg-white px-2 py-1 font-black text-slate-950 shadow-sm shadow-slate-200/60 ${textSize}`}>
+      {hasIndicators && <div className={`grid ${gridCols} items-end gap-1.5 text-center`}>
+        <span>{indicator('H', 'flag')}</span>
+        <span>{indicator('H', 'score')}</span>
+        <span />
+        <span>{indicator('A', 'score')}</span>
+        <span>{indicator('A', 'flag')}</span>
+      </div>}
+      <div className={`grid ${gridCols} items-center gap-1.5 text-center`}>
+        <span>{flag(homeFlag)}</span>
+        <span>{homeGoals}</span>
+        <span className="text-slate-300">-</span>
+        <span>{awayGoals}</span>
+        <span>{flag(awayFlag)}</span>
+      </div>
     </div>
   );
 }
