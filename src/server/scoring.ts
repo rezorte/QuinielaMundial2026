@@ -4,9 +4,20 @@ export function outcome(home: number, away: number) {
   return 'D';
 }
 
-export function scorePick(pickHome: number, pickAway: number, realHome: number | null, realAway: number | null) {
-  if (realHome === null || realAway === null) return { points: 0, exact: 0, result: 0 };
-  if (pickHome === realHome && pickAway === realAway) return { points: 3, exact: 1, result: 1 };
-  if (outcome(pickHome, pickAway) === outcome(realHome, realAway)) return { points: 1, exact: 0, result: 1 };
-  return { points: 0, exact: 0, result: 0 };
+export function scorePick(
+  pickHome: number,
+  pickAway: number,
+  realHome: number | null,
+  realAway: number | null,
+  pickAdvance?: string | null,
+  realAdvance?: string | null,
+  pickFirstGoal?: string | null,
+  realFirstGoal?: string | null
+) {
+  if (realHome === null || realAway === null) return { points: 0, exact: 0, result: 0, advance: 0, firstGoal: 0 };
+  const exact = pickHome === realHome && pickAway === realAway ? 1 : 0;
+  const result = exact || outcome(pickHome, pickAway) === outcome(realHome, realAway) ? 1 : 0;
+  const advance = pickAdvance && realAdvance && pickAdvance === realAdvance ? 1 : 0;
+  const firstGoal = pickFirstGoal && realFirstGoal && pickFirstGoal === realFirstGoal ? 1 : 0;
+  return { points: (exact ? 3 : result ? 1 : 0) + advance + firstGoal, exact, result, advance, firstGoal };
 }

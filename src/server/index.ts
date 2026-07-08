@@ -17,16 +17,35 @@ app.use(cors({ origin: appOrigin === '*' ? true : appOrigin, credentials: true }
 app.use(express.json({ limit: '1mb' }));
 
 const goalSchema = z.number().int().min(0).max(99);
+const sideSchema = z.enum(['H', 'A']);
+const firstGoalSchema = z.enum(['H', 'A', 'N']);
 const pickSchema = z.object({
   match_id: z.string().min(3).max(24),
   home_goals: goalSchema,
-  away_goals: goalSchema
+  away_goals: goalSchema,
+  advance_pick: sideSchema.nullable().optional(),
+  first_goal_pick: firstGoalSchema.nullable().optional()
 });
 const resultSchema = z.object({
   match_id: z.string().min(3).max(24),
   home_goals: goalSchema.nullable(),
-  away_goals: goalSchema.nullable()
+  away_goals: goalSchema.nullable(),
+  advance: sideSchema.nullable().optional(),
+  first_goal: firstGoalSchema.nullable().optional()
 });
+
+function pointsSql(cutoffCondition?: string) {
+  const cutoff = cutoffCondition ? `${cutoffCondition} AND ` : '';
+  return `
+    CASE
+      WHEN ${cutoff}m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND pk.home_goals = m.home_goals AND pk.away_goals = m.away_goals THEN 3
+      WHEN ${cutoff}m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND SIGN(pk.home_goals - pk.away_goals) = SIGN(m.home_goals - m.away_goals) THEN 1
+      ELSE 0
+    END
+    + CASE WHEN ${cutoff}m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND pk.advance_pick IS NOT NULL AND m.advance IS NOT NULL AND pk.advance_pick = m.advance THEN 1 ELSE 0 END
+    + CASE WHEN ${cutoff}m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND pk.first_goal_pick IS NOT NULL AND m.first_goal IS NOT NULL AND pk.first_goal_pick = m.first_goal THEN 1 ELSE 0 END
+  `;
+}
 
 function lockedExpr() {
   return 'UTC_TIMESTAMP() >= m.kickoff_utc';
@@ -92,7 +111,7 @@ app.get('/api/matches', async (_req, res) => {
   const rows = await query(`
     SELECT
       m.id, m.grp, m.jornada, DATE_FORMAT(m.kickoff_utc, '%Y-%m-%dT%H:%i:%sZ') kickoff_utc,
-      m.home_goals, m.away_goals, ${latePicksOpen ? '0' : lockedExpr()} locked,
+      m.home_goals, m.away_goals, m.advance, m.first_goal, ${latePicksOpen ? '0' : lockedExpr()} locked,
       ht.code home_code, ht.name home_name, ht.flag home_flag,
       at.code away_code, at.name away_name, at.flag away_flag
     FROM matches m
@@ -154,7 +173,7 @@ app.get('/api/matches/:matchId/stats', async (req, res) => {
 
 app.get('/api/picks/me', requirePlayer, async (req, res) => {
   const rows = await query(
-    `SELECT match_id, home_goals, away_goals, DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%sZ') updated_at
+    `SELECT match_id, home_goals, away_goals, advance_pick, first_goal_pick, DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%sZ') updated_at
      FROM picks WHERE player_id = :player_id`,
     { player_id: req.user!.playerId }
   );
@@ -206,10 +225,10 @@ app.post('/api/picks', requirePlayer, async (req, res) => {
         continue;
       }
       await conn.execute(
-        `INSERT INTO picks (player_id, match_id, home_goals, away_goals)
-         VALUES (:player_id, :match_id, :home_goals, :away_goals)
-         ON DUPLICATE KEY UPDATE home_goals = VALUES(home_goals), away_goals = VALUES(away_goals)`,
-        { ...item, player_id: req.user!.playerId }
+        `INSERT INTO picks (player_id, match_id, home_goals, away_goals, advance_pick, first_goal_pick)
+         VALUES (:player_id, :match_id, :home_goals, :away_goals, :advance_pick, :first_goal_pick)
+         ON DUPLICATE KEY UPDATE home_goals = VALUES(home_goals), away_goals = VALUES(away_goals), advance_pick = VALUES(advance_pick), first_goal_pick = VALUES(first_goal_pick)`,
+        { ...item, advance_pick: item.advance_pick ?? null, first_goal_pick: item.first_goal_pick ?? null, player_id: req.user!.playerId }
       );
       saved.push(item.match_id);
     }
@@ -243,12 +262,7 @@ async function standingRowsThroughMatch(match: { match_id: string; kickoff_utc: 
   const rows = await query<any>(`
     SELECT
       p.id player_id, p.alias,
-      COALESCE(SUM(CASE
-        WHEN NOT ${cutoffCondition} OR m.home_goals IS NULL OR m.away_goals IS NULL THEN 0
-        WHEN pk.home_goals = m.home_goals AND pk.away_goals = m.away_goals THEN 3
-        WHEN SIGN(pk.home_goals - pk.away_goals) = SIGN(m.home_goals - m.away_goals) THEN 1
-        ELSE 0
-      END), 0) points,
+      COALESCE(SUM(${pointsSql(cutoffCondition)}), 0) points,
       COALESCE(SUM(CASE
         WHEN ${cutoffCondition} AND m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND pk.home_goals = m.home_goals AND pk.away_goals = m.away_goals THEN 1
         ELSE 0
@@ -279,12 +293,7 @@ app.get('/api/standings', async (_req, res) => {
   const rows = await query<any>(`
     SELECT
       p.id player_id, p.alias,
-      COALESCE(SUM(CASE
-        WHEN m.home_goals IS NULL OR m.away_goals IS NULL THEN 0
-        WHEN pk.home_goals = m.home_goals AND pk.away_goals = m.away_goals THEN 3
-        WHEN SIGN(pk.home_goals - pk.away_goals) = SIGN(m.home_goals - m.away_goals) THEN 1
-        ELSE 0
-      END), 0) points,
+      COALESCE(SUM(${pointsSql()}), 0) points,
       COALESCE(SUM(CASE
         WHEN m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND pk.home_goals = m.home_goals AND pk.away_goals = m.away_goals THEN 1
         ELSE 0
@@ -309,12 +318,7 @@ app.get('/api/standings', async (_req, res) => {
   const previousRows = await query<any>(`
     SELECT
       p.id player_id, p.alias,
-      COALESCE(SUM(CASE
-        WHEN (m.kickoff_utc > :latest_kickoff OR (m.kickoff_utc = :latest_kickoff AND m.id >= :latest_match_id)) OR m.home_goals IS NULL OR m.away_goals IS NULL THEN 0
-        WHEN pk.home_goals = m.home_goals AND pk.away_goals = m.away_goals THEN 3
-        WHEN SIGN(pk.home_goals - pk.away_goals) = SIGN(m.home_goals - m.away_goals) THEN 1
-        ELSE 0
-      END), 0) points,
+      COALESCE(SUM(${pointsSql(`(m.kickoff_utc < :latest_kickoff OR (m.kickoff_utc = :latest_kickoff AND m.id < :latest_match_id))`)}), 0) points,
       COALESCE(SUM(CASE
         WHEN (m.kickoff_utc < :latest_kickoff OR (m.kickoff_utc = :latest_kickoff AND m.id < :latest_match_id)) AND m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND pk.home_goals = m.home_goals AND pk.away_goals = m.away_goals THEN 1
         ELSE 0
@@ -335,16 +339,16 @@ app.get('/api/standings', async (_req, res) => {
 });
 
 app.get('/api/matches/:matchId/picks', async (req, res) => {
-  const matchRows = await query<{ match_id: string; kickoff_utc: string; home_goals: number | null; away_goals: number | null }>(
-    `SELECT id match_id, kickoff_utc, home_goals, away_goals FROM matches WHERE id = :match_id LIMIT 1`,
+  const matchRows = await query<{ match_id: string; kickoff_utc: string; home_goals: number | null; away_goals: number | null; advance: string | null; first_goal: string | null }>(
+    `SELECT id match_id, kickoff_utc, home_goals, away_goals, advance, first_goal FROM matches WHERE id = :match_id LIMIT 1`,
     { match_id: req.params.matchId }
   );
   const selectedMatch = matchRows[0] || null;
   const rows = await query<any>(
     `SELECT
       p.id player_id, p.alias,
-      pk.home_goals, pk.away_goals,
-      m.home_goals real_home_goals, m.away_goals real_away_goals
+      pk.home_goals, pk.away_goals, pk.advance_pick, pk.first_goal_pick,
+      m.home_goals real_home_goals, m.away_goals real_away_goals, m.advance real_advance, m.first_goal real_first_goal
      FROM picks pk
      JOIN players p ON p.id = pk.player_id
      JOIN matches m ON m.id = pk.match_id
@@ -374,7 +378,9 @@ app.get('/api/matches/:matchId/picks', async (req, res) => {
     alias: row.alias,
     home_goals: row.home_goals,
     away_goals: row.away_goals,
-    points: scorePick(row.home_goals, row.away_goals, row.real_home_goals, row.real_away_goals).points,
+    advance_pick: row.advance_pick,
+    first_goal_pick: row.first_goal_pick,
+    points: scorePick(row.home_goals, row.away_goals, row.real_home_goals, row.real_away_goals, row.advance_pick, row.real_advance, row.first_goal_pick, row.real_first_goal).points,
     rank: historicalRanks.get(row.player_id)?.rank || null,
     rank_delta: historicalRanks.get(row.player_id)?.rank_delta || 0,
     rank_before: historicalRanks.get(row.player_id)?.rank_before || null,
@@ -431,7 +437,7 @@ app.put('/api/admin/player/:playerId', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/picks/:playerId', requireAdmin, async (req, res) => {
   const rows = await query(
-    `SELECT match_id, home_goals, away_goals, DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%sZ') updated_at
+    `SELECT match_id, home_goals, away_goals, advance_pick, first_goal_pick, DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%sZ') updated_at
      FROM picks WHERE player_id = :player_id`,
     { player_id: req.params.playerId }
   );
@@ -443,10 +449,10 @@ app.put('/api/admin/picks/:playerId', requireAdmin, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_PICKS', issues: parsed.error.issues });
   for (const item of parsed.data) {
     await pool.execute(
-      `INSERT INTO picks (player_id, match_id, home_goals, away_goals)
-       VALUES (:player_id, :match_id, :home_goals, :away_goals)
-       ON DUPLICATE KEY UPDATE home_goals = VALUES(home_goals), away_goals = VALUES(away_goals)`,
-      { ...item, player_id: req.params.playerId }
+      `INSERT INTO picks (player_id, match_id, home_goals, away_goals, advance_pick, first_goal_pick)
+       VALUES (:player_id, :match_id, :home_goals, :away_goals, :advance_pick, :first_goal_pick)
+       ON DUPLICATE KEY UPDATE home_goals = VALUES(home_goals), away_goals = VALUES(away_goals), advance_pick = VALUES(advance_pick), first_goal_pick = VALUES(first_goal_pick)`,
+      { ...item, advance_pick: item.advance_pick ?? null, first_goal_pick: item.first_goal_pick ?? null, player_id: req.params.playerId }
     );
   }
   res.json({ saved: parsed.data.map((pick) => pick.match_id) });
@@ -456,8 +462,8 @@ app.post('/api/admin/result', requireAdmin, async (req, res) => {
   const parsed = resultSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'INVALID_RESULT', issues: parsed.error.issues });
   await pool.execute(
-    `UPDATE matches SET home_goals = :home_goals, away_goals = :away_goals WHERE id = :match_id`,
-    parsed.data
+    `UPDATE matches SET home_goals = :home_goals, away_goals = :away_goals, advance = :advance, first_goal = :first_goal WHERE id = :match_id`,
+    { ...parsed.data, advance: parsed.data.advance ?? null, first_goal: parsed.data.first_goal ?? null }
   );
   res.json({ ok: true });
 });
@@ -477,11 +483,11 @@ app.post('/api/admin/settings', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/scores/:playerId', requireAdmin, async (req, res) => {
   const rows = await query<any>(
-    `SELECT pk.match_id, pk.home_goals, pk.away_goals, m.home_goals real_home, m.away_goals real_away
+    `SELECT pk.match_id, pk.home_goals, pk.away_goals, pk.advance_pick, pk.first_goal_pick, m.home_goals real_home, m.away_goals real_away, m.advance real_advance, m.first_goal real_first_goal
      FROM picks pk JOIN matches m ON m.id = pk.match_id WHERE pk.player_id = :player_id`,
     { player_id: req.params.playerId }
   );
-  res.json(rows.map((row: any) => ({ ...row, score: scorePick(row.home_goals, row.away_goals, row.real_home, row.real_away) })));
+  res.json(rows.map((row: any) => ({ ...row, score: scorePick(row.home_goals, row.away_goals, row.real_home, row.real_away, row.advance_pick, row.real_advance, row.first_goal_pick, row.real_first_goal) })));
 });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

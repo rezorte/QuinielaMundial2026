@@ -10,6 +10,8 @@ type Match = {
   kickoff_utc: string;
   home_goals: number | null;
   away_goals: number | null;
+  advance: 'H' | 'A' | null;
+  first_goal: 'H' | 'A' | 'N' | null;
   locked: 0 | 1 | boolean;
   home_code: string;
   home_name: string;
@@ -18,12 +20,14 @@ type Match = {
   away_name: string;
   away_flag: string;
 };
-type Pick = { match_id: string; home_goals: number; away_goals: number };
-type ResultDraft = { match_id: string; home_goals: number | null; away_goals: number | null };
+type BonusSide = 'H' | 'A';
+type FirstGoalPick = 'H' | 'A' | 'N';
+type Pick = { match_id: string; home_goals: number; away_goals: number; advance_pick?: BonusSide | null; first_goal_pick?: FirstGoalPick | null };
+type ResultDraft = { match_id: string; home_goals: number | null; away_goals: number | null; advance?: BonusSide | null; first_goal?: FirstGoalPick | null };
 type Player = { id: string; alias: string; display_name?: string; birth_year?: string; active?: boolean | 0 | 1 };
 type Standing = { rank: number; rank_delta: number; player_id: string; alias: string; points: number; exacts: number; results: number };
-type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; points: number; rank?: number | null; rank_delta?: number; rank_before?: number | null; points_before?: number | null; points_after?: number | null };
-type PlayPickPreview = { label: string; pick: Pick | MatchPick; isSelf?: boolean; meta?: string; rank?: number };
+type MatchPick = { player_id: string; alias: string; home_goals: number; away_goals: number; advance_pick?: BonusSide | null; first_goal_pick?: FirstGoalPick | null; points: number; rank?: number | null; rank_delta?: number; rank_before?: number | null; points_before?: number | null; points_after?: number | null };
+type PlayPickPreview = { label: string; pick?: Pick | MatchPick; isSelf?: boolean; meta?: string; rank?: number };
 type PlayMessage = { text: string; pick?: MatchPick; pickLabel?: string; picks?: PlayPickPreview[] };
 type AppSettings = { late_picks_open: boolean; reveal_picks: boolean; show_team_stats: boolean; registration_open: boolean; show_match_picks: boolean; show_pick_scores: boolean };
 type TeamStats = {
@@ -123,15 +127,17 @@ function outcome(home: number, away: number) {
 
 function pickPoints(pick: Pick | undefined, match: Match) {
   if (!pick || match.home_goals === null || match.away_goals === null) return null;
-  if (pick.home_goals === match.home_goals && pick.away_goals === match.away_goals) return 3;
-  if (outcome(pick.home_goals, pick.away_goals) === outcome(match.home_goals, match.away_goals)) return 1;
-  return 0;
+  const base = pick.home_goals === match.home_goals && pick.away_goals === match.away_goals ? 3 : outcome(pick.home_goals, pick.away_goals) === outcome(match.home_goals, match.away_goals) ? 1 : 0;
+  const advance = pick.advance_pick && match.advance && pick.advance_pick === match.advance ? 1 : 0;
+  const firstGoal = pick.first_goal_pick && match.first_goal && pick.first_goal_pick === match.first_goal ? 1 : 0;
+  return base + advance + firstGoal;
 }
 
 function matchRoundLabel(match?: Match) {
   if (!match) return '';
   if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
   if (match.grp === 'O' && match.jornada === 5) return 'Ronda de 16';
+  if (match.grp === 'Q' && match.jornada === 6) return 'Cuartos de final';
   return `Grupo ${match.grp}`;
 }
 
@@ -139,6 +145,7 @@ function matchStageLabel(match?: Match) {
   if (!match) return '';
   if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
   if (match.grp === 'O' && match.jornada === 5) return 'Ronda de 16';
+  if (match.grp === 'Q' && match.jornada === 6) return 'Cuartos de final';
   return `Jornada ${match.jornada} · Grupo ${match.grp}`;
 }
 
@@ -146,6 +153,7 @@ function dayRoundLabel(match?: Match) {
   if (!match) return '';
   if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
   if (match.grp === 'O' && match.jornada === 5) return 'Ronda de 16';
+  if (match.grp === 'Q' && match.jornada === 6) return 'Cuartos de final';
   return `Jornada ${match.jornada}`;
 }
 
@@ -337,10 +345,10 @@ function FillView({ matches, picks, setPicks, standings, player, showStats, show
     setIndex(defaultDayIndex(days));
   }, [days.join('|')]);
 
-  async function setScore(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
+  async function savePickPatch(match: Match, patch: Partial<Pick>) {
     if (match.locked) return;
     const current = picks[match.id] || { match_id: match.id, home_goals: 0, away_goals: 0 };
-    const next = { ...current, [side]: Math.max(0, Math.min(99, current[side] + delta)) };
+    const next = { ...current, ...patch };
     setPicks({ ...picks, [match.id]: next });
     setSaving({ ...saving, [match.id]: true });
     await api.request('/api/picks', { method: 'POST', body: JSON.stringify([next]) }).catch((error) => {
@@ -350,6 +358,11 @@ function FillView({ matches, picks, setPicks, standings, player, showStats, show
     setSaving((state) => ({ ...state, [match.id]: false }));
     setSavedPulse(true);
     window.setTimeout(() => setSavedPulse(false), 1200);
+  }
+
+  async function setScore(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
+    const current = picks[match.id] || { match_id: match.id, home_goals: 0, away_goals: 0 };
+    await savePickPatch(match, { [side]: Math.max(0, Math.min(99, current[side] + delta)) });
   }
 
   return (
@@ -368,7 +381,7 @@ function FillView({ matches, picks, setPicks, standings, player, showStats, show
         <PersonalHistoryCard history={personal} />
       </div>
       <div className="space-y-4">
-        {dayMatches.map((match) => <MatchCard key={match.id} match={match} allMatches={matches} pick={picks[match.id]} setScore={setScore} saving={saving[match.id]} standings={standings} player={player} showStats={showStats} showMatchPicks={showMatchPicks} showPickScores={showPickScores} />)}
+        {dayMatches.map((match) => <MatchCard key={match.id} match={match} allMatches={matches} pick={picks[match.id]} setScore={setScore} setPickPatch={savePickPatch} saving={saving[match.id]} standings={standings} player={player} showStats={showStats} showMatchPicks={showMatchPicks} showPickScores={showPickScores} />)}
       </div>
       <div className={`fixed bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full px-4 py-2 text-xs font-black shadow-sm transition-all ${isSaving ? 'bg-pitch text-white opacity-100' : savedPulse ? 'bg-slate-100 text-pitch opacity-100' : 'pointer-events-none opacity-0'}`}>
         {isSaving ? 'Guardando...' : 'Guardado'}
@@ -396,7 +409,7 @@ function PersonalHistoryCard({ history }: { history: ReturnType<typeof personalH
           <b className="mt-1 block text-sm leading-5 text-slate-950">{history.played ? `Últimos ${history.played}` : 'Pendiente de resultados'}</b>
         </div>
         {history.form.length > 0 && <div className="flex shrink-0 gap-1 pt-1" aria-label="Puntos recientes">
-          {history.form.map((points, index) => <span key={index} className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-black ${points === 3 ? 'bg-emerald-100 text-pitch' : points === 1 ? 'bg-slate-100 text-slate-600' : 'bg-red-50 text-triondaRed'}`}>{points}</span>)}
+          {history.form.map((points, index) => <span key={index} className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-black ${points >= 3 ? 'bg-emerald-100 text-pitch' : points === 1 ? 'bg-slate-100 text-slate-600' : 'bg-red-50 text-triondaRed'}`}>{points}</span>)}
         </div>}
       </div>
       <div className="mt-2 grid grid-cols-3 gap-1.5">
@@ -424,7 +437,10 @@ function personalHistory(matches: Match[], picks: Record<string, Pick>) {
     .sort((a, b) => new Date(b.kickoff_utc).getTime() - new Date(a.kickoff_utc).getTime());
   const recent = scored.slice(0, 5);
   if (!recent.length) return { played: 0, exacts: 0, results: 0, favorite: '', form: [] as number[] };
-  const exacts = recent.filter((match) => pickPoints(picks[match.id], match) === 3).length;
+  const exacts = recent.filter((match) => {
+    const pick = picks[match.id];
+    return pick.home_goals === match.home_goals && pick.away_goals === match.away_goals;
+  }).length;
   const results = recent.filter((match) => {
     const points = pickPoints(picks[match.id], match);
     return points !== null && points > 0;
@@ -444,7 +460,7 @@ function personalHistory(matches: Match[], picks: Record<string, Pick>) {
   };
 }
 
-function MatchCard({ match, allMatches = [], pick, setScore, forceOpen = false, saving = false, standings = [], player, showStats = false, showMatchPicks = false, showPickScores = false }: { match: Match; allMatches?: Match[]; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; forceOpen?: boolean; saving?: boolean; standings?: Standing[]; player?: Player; showStats?: boolean; showMatchPicks?: boolean; showPickScores?: boolean }) {
+function MatchCard({ match, allMatches = [], pick, setScore, setPickPatch, forceOpen = false, saving = false, standings = [], player, showStats = false, showMatchPicks = false, showPickScores = false }: { match: Match; allMatches?: Match[]; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; setPickPatch?: (m: Match, patch: Partial<Pick>) => void; forceOpen?: boolean; saving?: boolean; standings?: Standing[]; player?: Player; showStats?: boolean; showMatchPicks?: boolean; showPickScores?: boolean }) {
   const locked = Boolean(match.locked) && !forceOpen;
   const points = pickPoints(pick, match);
   return (
@@ -457,6 +473,7 @@ function MatchCard({ match, allMatches = [], pick, setScore, forceOpen = false, 
         <TeamScore name={match.home_name} flag={match.home_flag} value={pick?.home_goals} locked={locked} onMinus={() => setScore(match, 'home_goals', -1)} onPlus={() => setScore(match, 'home_goals', 1)} />
         <TeamScore name={match.away_name} flag={match.away_flag} value={pick?.away_goals} locked={locked} onMinus={() => setScore(match, 'away_goals', -1)} onPlus={() => setScore(match, 'away_goals', 1)} />
       </div>
+      {isBonusMatch(match) && pick && setPickPatch && <KnockoutPickControls match={match} pick={pick} locked={locked} onChange={(patch) => setPickPatch(match, patch)} />}
       {showPickScores && points !== null && <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
         <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
           Resultado real:
@@ -580,7 +597,7 @@ function PlayChip({ label, text, tone, match }: { label: string; text: string | 
         <b className="mt-0.5 block text-sm leading-5 text-slate-950">{message.text}</b>
         {message.pick && !message.picks?.length && message.pickLabel && <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">{message.pickLabel}</span>}
         {message.picks?.length ? <div className="mt-2 flex flex-wrap gap-1.5">
-          {message.picks.map((item) => <PickPreview key={`${item.label}-${item.pick.home_goals}-${item.pick.away_goals}`} match={match} item={item} />)}
+          {message.picks.map((item) => <PickPreview key={`${item.label}-${item.rank || ''}-${item.pick ? `${item.pick.home_goals}-${item.pick.away_goals}` : 'pending'}`} match={match} item={item} />)}
         </div> : null}
       </div>
     </div>
@@ -601,7 +618,7 @@ function PickPreview({ match, item }: { match: Match; item: PlayPickPreview }) {
     <div className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 shadow-sm shadow-slate-200/60 ${item.isSelf ? 'bg-emerald-50 ring-1 ring-pitch/30' : 'bg-white'}`}>
       {item.rank && <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black ${rankClass}`}>#{item.rank}</span>}
       <span className={`max-w-[132px] truncate text-[10px] font-black uppercase tracking-[0.08em] ${item.isSelf ? 'text-pitch' : 'text-slate-400'}`}>{item.label}</span>
-      <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={item.pick.home_goals} awayGoals={item.pick.away_goals} size="xs" />
+      {item.pick && <FlagScore homeFlag={match.home_flag} awayFlag={match.away_flag} homeGoals={item.pick.home_goals} awayGoals={item.pick.away_goals} size="xs" />}
       {item.meta && <span className="text-[10px] font-black text-slate-400">{item.meta}</span>}
     </div>
   );
@@ -704,10 +721,19 @@ function familyDrama(match: Match, picks: MatchPick[], standings: Standing[], pl
   const hasResult = match.home_goals !== null && match.away_goals !== null;
   const contextualStandings = contextualStandingsForMatch(picks, standings, hasResult);
   const currentStanding = player ? contextualStandings.find((row) => row.player_id === player.id) : undefined;
-  const attack = currentStanding && currentPick ? attackLabel(currentStanding, currentPick, picks, contextualStandings, hasResult) : '';
-  const defense = currentStanding && currentPick ? defenseLabel(currentStanding, currentPick, picks, contextualStandings, hasResult) : '';
+  const maxPoints = maxPointsForMatch(match);
+  const attack = currentStanding && currentPick ? attackLabel(currentStanding, currentPick, picks, contextualStandings, hasResult, maxPoints) : '';
+  const defense = currentStanding && currentPick ? defenseLabel(currentStanding, currentPick, picks, contextualStandings, hasResult, maxPoints) : '';
   const topThree = currentStanding && currentPick ? topThreeLabel(currentStanding, currentPick, picks, contextualStandings, hasResult) : '';
   return { attack, defense, topThree };
+}
+
+function maxPointsForMatch(_match: Match) {
+  return isBonusMatch(_match) ? 5 : 3;
+}
+
+function isBonusMatch(match?: Match) {
+  return Boolean(match && match.grp === 'Q' && match.jornada >= 6);
 }
 
 function contextualStandingsForMatch(picks: MatchPick[], standings: Standing[], hasResult: boolean): Standing[] {
@@ -726,24 +752,27 @@ function contextualStandingsForMatch(picks: MatchPick[], standings: Standing[], 
     .sort((a, b) => Number(a.rank) - Number(b.rank) || Number(b.points) - Number(a.points) || a.alias.localeCompare(b.alias));
 }
 
-function attackLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[], hasResult: boolean): PlayMessage | '' {
+function attackLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[], hasResult: boolean, maxPoints: number): PlayMessage | '' {
   const currentPoints = Number(current.points);
   const currentRank = Number(current.rank);
-  const currentMax = currentPoints + 3;
+  const currentMax = currentPoints + maxPoints;
   const passable = standings
     .filter((row) => row.player_id !== current.player_id)
-    .filter((row) => Number(row.rank) < currentRank && currentMax > Number(row.points))
+    .filter((row) => Number(row.rank) <= currentRank && currentMax > Number(row.points))
     .sort((a, b) => Number(b.rank) - Number(a.rank) || Number(a.points) - Number(b.points));
   const rivals = passable
     .map((row) => ({ row, pick: picks.find((pick) => pick.player_id === row.player_id) }))
     .filter((item): item is { row: Standing; pick: MatchPick } => Boolean(item.pick));
   const differentRivals = rivals.filter(({ pick }) => !samePick(currentPick, pick));
-  const previews = [{ label: 'Tu pick', pick: currentPick, isSelf: true, meta: pointsMeta(currentPick, hasResult) }, ...differentRivals.map(({ row, pick }) => ({ label: row.alias, pick, meta: pointsMeta(pick, hasResult) }))];
+  const sameRivals = rivals.filter(({ pick }) => samePick(currentPick, pick));
+  const previews = [{ label: 'Tu pick', pick: currentPick, isSelf: true, meta: pointsMeta(currentPick, hasResult) }, ...rivals.map(({ row, pick }) => ({ label: row.alias, pick, meta: pointsMeta(pick, hasResult) }))];
   if (differentRivals.length) {
     const possibleRank = standings.filter((row) => row.player_id !== current.player_id && Number(row.points) >= currentMax).length + 1;
+    const sameText = sameRivals.length ? ` ${nameList(sameRivals.map(({ row }) => row.alias))} ${sameRivals.length === 1 ? 'trae' : 'traen'} tu mismo pick, ahí no rompes empate.` : '';
     if (hasResult) {
       const passed = differentRivals.filter(({ row }) => afterRank(currentPick) !== null && afterRank(rowPick(picks, row.player_id)) !== null && Number(afterRank(currentPick)) < Number(afterRank(rowPick(picks, row.player_id))));
-      const assumption = `Supuesto: con exacto y que ${nameList(differentRivals.map(({ row }) => row.alias))} sumaran menos que tú, podías subir hacia #${possibleRank}.`;
+      const rivalNames = differentRivals.map(({ row }) => row.alias);
+      const assumption = `Supuesto: haciendo +${maxPoints} y que ${nameList(rivalNames)} ${sumLessVerb(rivalNames)} que tú, podías subir hacia #${possibleRank}.${sameText}`;
       return {
         text: passed.length
           ? `${assumption} Se logró: con este partido pasaste a ${nameList(passed.map(({ row }) => row.alias))}.`
@@ -751,12 +780,12 @@ function attackLabel(current: Standing, currentPick: MatchPick, picks: MatchPick
         picks: previews
       };
     }
+    const rivalNames = differentRivals.map(({ row }) => row.alias);
     return {
-      text: `Supuesto: con exacto y que ${nameList(differentRivals.map(({ row }) => row.alias))} sumen menos que tú, puedes subir hasta #${possibleRank}.`,
+      text: `Supuesto: haciendo +${maxPoints} y que ${nameList(rivalNames)} ${sumLessVerb(rivalNames)} que tú, puedes subir hasta #${possibleRank}.${sameText}`,
       picks: previews
     };
   }
-  const sameRivals = rivals.filter(({ pick }) => samePick(currentPick, pick));
   if (sameRivals.length) {
     return {
       text: hasResult
@@ -766,7 +795,7 @@ function attackLabel(current: Standing, currentPick: MatchPick, picks: MatchPick
     };
   }
   const nextAbove = standings
-    .filter((row) => row.player_id !== current.player_id && Number(row.rank) < currentRank)
+    .filter((row) => row.player_id !== current.player_id && Number(row.rank) <= currentRank)
     .sort((a, b) => Number(b.rank) - Number(a.rank) || Number(a.points) - Number(b.points))[0];
   const nextPick = nextAbove ? picks.find((pick) => pick.player_id === nextAbove.player_id) : undefined;
   if (!nextAbove || !nextPick) return '';
@@ -784,12 +813,12 @@ function samePick(a: Pick | MatchPick, b: Pick | MatchPick) {
   return a.home_goals === b.home_goals && a.away_goals === b.away_goals;
 }
 
-function defenseLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[], hasResult: boolean): PlayMessage | '' {
+function defenseLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[], hasResult: boolean, maxPoints: number): PlayMessage | '' {
   const currentPoints = Number(current.points);
   const currentRank = Number(current.rank);
   const threats = standings
     .filter((row) => row.player_id !== current.player_id)
-    .filter((row) => Number(row.rank) >= currentRank && Number(row.points) + 3 > currentPoints)
+    .filter((row) => Number(row.rank) >= currentRank && Number(row.points) + maxPoints > currentPoints)
     .sort((a, b) => Number(a.rank) - Number(b.rank) || Number(b.points) - Number(a.points));
   const rivals = threats
     .map((row) => ({ row, pick: picks.find((pick) => pick.player_id === row.player_id) }))
@@ -802,8 +831,9 @@ function defenseLabel(current: Standing, currentPick: MatchPick, picks: MatchPic
     const currentAfterRank = afterRank(currentPick);
     const movedAhead = different.filter(({ pick }) => currentAfterRank !== null && afterRank(pick) !== null && Number(afterRank(pick)) < Number(currentAfterRank));
     const reached = different.filter(({ pick }) => currentAfterRank !== null && afterRank(pick) !== null && Number(afterRank(pick)) === Number(currentAfterRank));
+    const differentNames = different.map(({ row }) => row.alias);
     const assumption = different.length
-      ? `Supuesto: si fallabas y ${nameList(different.map(({ row }) => row.alias))} pegaba exacto, te podía pasar o alcanzar.`
+      ? `Supuesto: si fallabas y ${nameList(differentNames)} ${maxPointsVerb(differentNames, maxPoints)}, te podía pasar o alcanzar.`
       : `Supuesto: traían tu mismo pick, así que no podían recortarte si todos sumaban igual.`;
     return {
       text: movedAhead.length
@@ -818,7 +848,7 @@ function defenseLabel(current: Standing, currentPick: MatchPick, picks: MatchPic
   }
   return {
     text: different.length
-      ? `Supuesto: si fallas y ${nameList(focus.map(({ row }) => row.alias))} pega exacto, te puede pasar o alcanzar.`
+      ? `Supuesto: si fallas y ${nameList(focus.map(({ row }) => row.alias))} ${maxPointsVerb(focus.map(({ row }) => row.alias), maxPoints)}, te puede pasar o alcanzar.`
       : `Traen tu mismo camino: ${nameList(focus.map(({ row }) => row.alias))} no te recorta si todos suman igual.`,
     picks: previews
   };
@@ -826,23 +856,32 @@ function defenseLabel(current: Standing, currentPick: MatchPick, picks: MatchPic
 
 function topThreeLabel(current: Standing, currentPick: MatchPick, picks: MatchPick[], standings: Standing[], hasResult: boolean): PlayMessage | '' {
   const topRows = standings.slice(0, 3);
-  const topPicks = topRows
-    .map((row) => ({ row, pick: picks.find((pick) => pick.player_id === row.player_id) }))
-    .filter((item): item is { row: Standing; pick: MatchPick } => Boolean(item.pick));
-  if (topPicks.length < 2) return '';
+  if (!topRows.length) return '';
+  const topPicks = topRows.map((row) => ({ row, pick: picks.find((pick) => pick.player_id === row.player_id) }));
   const currentInTop = topRows.some((row) => row.player_id === current.player_id);
-  const sameTop = topPicks.filter(({ row, pick }) => row.player_id !== current.player_id && samePick(currentPick, pick));
-  const differentOutcomes = new Set(topPicks.map(({ pick }) => pickOutcomeKey(pick))).size > 1;
+  const filledTopPicks = topPicks.filter((item): item is { row: Standing; pick: MatchPick } => Boolean(item.pick));
+  const sameTop = filledTopPicks.filter(({ row, pick }) => row.player_id !== current.player_id && samePick(currentPick, pick));
+  const differentOutcomes = new Set(filledTopPicks.map(({ pick }) => pickOutcomeKey(pick))).size > 1;
   const text = currentInTop
-    ? differentOutcomes
-      ? `${hasResult ? 'Antes del partido estabas' : 'Estás'} en el Top 3; tu pick va marcado para ver quién se separa.`
-      : `El Top 3 ${hasResult ? 'de ese momento iba' : 'va'} alineado; tu pick va marcado.`
+    ? filledTopPicks.length < 2
+      ? `${hasResult ? 'Antes del partido estabas' : 'Estás'} en el Top 3; faltan picks para comparar caminos.`
+      : differentOutcomes
+        ? `${hasResult ? 'Antes del partido estabas' : 'Estás'} en el Top 3; tu pick va marcado para ver quién se separa.`
+        : `El Top 3 ${hasResult ? 'de ese momento iba' : 'va'} alineado; tu pick va marcado.`
     : sameTop.length
       ? hasResult
         ? `Traías el mismo camino que ${nameList(sameTop.map(({ row }) => row.alias))}; este era el Top 3 de ese momento.`
         : `Traes el mismo camino que ${nameList(sameTop.map(({ row }) => row.alias))}; mira cómo viene el Top 3.`
-      : `${hasResult ? 'Ibas' : 'Vas'} contra el Top 3; estos son sus caminos.`;
-  const previews: PlayPickPreview[] = topPicks.map(({ row, pick }) => ({ label: row.player_id === current.player_id ? 'Tu pick' : row.alias, pick, isSelf: row.player_id === current.player_id, meta: pointsMeta(pick, hasResult), rank: Number(row.rank) }));
+      : filledTopPicks.length
+        ? `${hasResult ? 'Ibas' : 'Vas'} contra el Top 3; estos son sus caminos.`
+        : `Top 3 ${hasResult ? 'de ese momento' : 'actual'}: todavía no hay picks de los punteros para este partido.`;
+  const previews: PlayPickPreview[] = topPicks.map(({ row, pick }) => ({
+    label: row.player_id === current.player_id ? 'Tu pick' : row.alias,
+    pick,
+    isSelf: row.player_id === current.player_id,
+    meta: pick ? pointsMeta(pick, hasResult) : 'Pendiente',
+    rank: Number(row.rank)
+  }));
   if (!currentInTop) previews.push({ label: `Tu pick #${current.rank}`, pick: currentPick, isSelf: true, meta: pointsMeta(currentPick, hasResult) });
   return { text, picks: previews };
 }
@@ -863,6 +902,14 @@ function nameList(names: string[]) {
   if (names.length <= 1) return names[0] || '';
   if (names.length === 2) return `${names[0]} y ${names[1]}`;
   return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
+}
+
+function sumLessVerb(names: string[]) {
+  return names.length === 1 ? 'sume menos' : 'sumen menos';
+}
+
+function maxPointsVerb(names: string[], maxPoints: number) {
+  return names.length === 1 ? `hace +${maxPoints}` : `hacen +${maxPoints}`;
 }
 
 function pickOutcomeKey(pick: Pick | MatchPick) {
@@ -1181,6 +1228,50 @@ function TeamScore({ name, flag, value, locked, onMinus, onPlus }: { name: strin
   );
 }
 
+function KnockoutPickControls({ match, pick, locked, onChange }: { match: Match; pick: Pick; locked: boolean; onChange: (patch: Partial<Pick>) => void }) {
+  return (
+    <div className="mx-4 mb-4 rounded-lg border border-slate-100 bg-slate-50 p-3">
+      <div className="grid gap-3 min-[520px]:grid-cols-2">
+        <BonusChoiceGroup
+          label="Clasifica"
+          options={[
+            { value: 'H', label: match.home_name, flag: match.home_flag },
+            { value: 'A', label: match.away_name, flag: match.away_flag }
+          ]}
+          value={pick.advance_pick || null}
+          locked={locked}
+          onChange={(value) => onChange({ advance_pick: value as BonusSide })}
+        />
+        <BonusChoiceGroup
+          label="Primer gol"
+          options={[
+            { value: 'H', label: match.home_name, flag: match.home_flag },
+            { value: 'A', label: match.away_name, flag: match.away_flag },
+            { value: 'N', label: 'Sin gol' }
+          ]}
+          value={pick.first_goal_pick || null}
+          locked={locked}
+          onChange={(value) => onChange({ first_goal_pick: value as FirstGoalPick })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function BonusChoiceGroup({ label, options, value, locked, onChange }: { label: string; options: Array<{ value: string; label: string; flag?: string }>; value: string | null; locked: boolean; onChange: (value: string) => void }) {
+  return (
+    <div>
+      <div className="mb-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">{label} · +1</div>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((option) => <button key={option.value} disabled={locked} onClick={() => onChange(option.value)} className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black shadow-sm disabled:opacity-50 ${value === option.value ? 'bg-slate-950 text-white' : 'bg-white text-slate-500'}`}>
+          {option.flag && <img src={flagUrl(option.flag)} alt="" className="h-3.5 w-5 rounded-sm object-cover" />}
+          <span className="max-w-[96px] truncate">{option.label}</span>
+        </button>)}
+      </div>
+    </div>
+  );
+}
+
 function RankMovement({ delta }: { delta: number }) {
   if (!delta) return null;
   const movedUp = delta > 0;
@@ -1293,7 +1384,7 @@ function TableView({ standings, matches, player }: { standings: Standing[]; matc
         </div>;
         })}
       </div>
-      <p className="mt-5 text-center text-sm leading-6 text-slate-500">1 punto por resultado · 3 puntos por marcador exacto.</p>
+      <p className="mt-5 text-center text-sm leading-6 text-slate-500">1 punto por resultado · 3 por exacto · en cuartos +1 clasifica y +1 primer gol.</p>
       </>}
 
       {view === 'match' && <section className="rounded-lg bg-white p-4 border border-slate-200 shadow-md shadow-slate-200/60">
@@ -1389,7 +1480,12 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   }
   async function changeDraft(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
     const current = draft[match.id] || { match_id: match.id, home_goals: 0, away_goals: 0 };
-    const next = { ...current, [side]: Math.max(0, current[side] + delta) };
+    await saveDraftPatch(match, { [side]: Math.max(0, current[side] + delta) });
+  }
+
+  async function saveDraftPatch(match: Match, patch: Partial<Pick>) {
+    const current = draft[match.id] || { match_id: match.id, home_goals: 0, away_goals: 0 };
+    const next = { ...current, ...patch };
     setDraft({ ...draft, [match.id]: next });
     if (selected) {
       await admin(`/api/admin/picks/${selected}`, { method: 'PUT', body: JSON.stringify([next]) });
@@ -1397,16 +1493,25 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
     }
   }
   function changeResult(match: Match, side: 'home_goals' | 'away_goals', delta: number) {
-    const current = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
+    const current = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals, advance: match.advance, first_goal: match.first_goal };
     const currentValue = current[side];
     const nextValue = currentValue === null ? 0 : Math.max(0, currentValue + delta);
     setResultDraft({ ...resultDraft, [match.id]: { ...current, [side]: nextValue } });
   }
 
+  function changeResultBonus(match: Match, patch: Partial<ResultDraft>) {
+    const current = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals, advance: match.advance, first_goal: match.first_goal };
+    setResultDraft({ ...resultDraft, [match.id]: { ...current, ...patch } });
+  }
+
   async function saveResult(match: Match) {
-    const current = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
+    const current = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals, advance: match.advance, first_goal: match.first_goal };
     if (current.home_goals === null || current.away_goals === null) {
       alert('Captura los dos marcadores antes de guardar.');
+      return;
+    }
+    if (isBonusMatch(match) && (!current.advance || !current.first_goal)) {
+      alert('Captura quien clasifica y quien anota primero.');
       return;
     }
     await admin('/api/admin/result', { method: 'POST', body: JSON.stringify(current) });
@@ -1415,7 +1520,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   }
 
   async function clearResult(match: Match) {
-    await admin('/api/admin/result', { method: 'POST', body: JSON.stringify({ match_id: match.id, home_goals: null, away_goals: null }) });
+    await admin('/api/admin/result', { method: 'POST', body: JSON.stringify({ match_id: match.id, home_goals: null, away_goals: null, advance: null, first_goal: null }) });
     setResultDraft(({ [match.id]: _removed, ...rest }) => rest);
     await reload();
   }
@@ -1460,7 +1565,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
   const resultMatches = matches
     .filter((match) => localDateKey(match.kickoff_utc) === resultDate);
   const matchFinishedGraceMs = 2 * 60 * 60 * 1000;
-  const missingResultMatches = matches.filter((match) => new Date(match.kickoff_utc).getTime() + matchFinishedGraceMs <= Date.now() && (match.home_goals === null || match.away_goals === null));
+  const missingResultMatches = matches.filter((match) => new Date(match.kickoff_utc).getTime() + matchFinishedGraceMs <= Date.now() && (match.home_goals === null || match.away_goals === null || (isBonusMatch(match) && (!match.advance || !match.first_goal))));
   const missingResultDays = Array.from(new Set(missingResultMatches.map((match) => localDateKey(match.kickoff_utc))));
 
   function goToMissingResults(day: string) {
@@ -1596,7 +1701,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
           <p className="mt-2 text-xs font-bold text-slate-400">Muestra solo los partidos de esa fecha para capturar picks más rápido.</p>
         </section>
         {pickMatches.length === 0 && <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm font-bold text-slate-400">No hay partidos en esta fecha.</div>}
-        {pickMatches.map((match) => <MatchCard key={match.id} match={match} pick={draft[match.id]} setScore={changeDraft} forceOpen />)}
+        {pickMatches.map((match) => <MatchCard key={match.id} match={match} pick={draft[match.id]} setScore={changeDraft} setPickPatch={saveDraftPatch} forceOpen />)}
       </div> : <div className="mt-3 space-y-3">
         <section className="rounded-lg bg-white p-4 border border-slate-200 shadow-md shadow-slate-200/60">
           <label className="block text-sm font-black text-slate-950">Fecha</label>
@@ -1608,9 +1713,9 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
         </section>
         {resultMatches.length === 0 && <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm font-bold text-slate-400">No hay partidos en esta fecha.</div>}
         {resultMatches.map((match) => {
-          const p: ResultDraft = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals };
-          const dirty = p.home_goals !== match.home_goals || p.away_goals !== match.away_goals;
-          const canSave = p.home_goals !== null && p.away_goals !== null;
+          const p: ResultDraft = resultDraft[match.id] || { match_id: match.id, home_goals: match.home_goals, away_goals: match.away_goals, advance: match.advance, first_goal: match.first_goal };
+          const dirty = p.home_goals !== match.home_goals || p.away_goals !== match.away_goals || p.advance !== match.advance || p.first_goal !== match.first_goal;
+          const canSave = p.home_goals !== null && p.away_goals !== null && (!isBonusMatch(match) || Boolean(p.advance && p.first_goal));
           return <article key={match.id} className="rounded-lg bg-white p-3 border border-slate-200 shadow-md shadow-slate-200/60">
             <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{matchRoundLabel(match)} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</div>
             <div className="grid grid-cols-2 gap-3">
@@ -1632,6 +1737,31 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
               <b className="text-center text-lg">{p.away_goals ?? '-'}</b>
               <button className="mini-btn filled !h-10 !w-10" onClick={() => changeResult(match, 'away_goals', 1)}>+</button>
             </div>
+            {isBonusMatch(match) && <div className="mt-3 rounded-lg bg-slate-50 p-3">
+              <div className="grid gap-3 min-[520px]:grid-cols-2">
+                <BonusChoiceGroup
+                  label="Clasifica"
+                  options={[
+                    { value: 'H', label: match.home_name, flag: match.home_flag },
+                    { value: 'A', label: match.away_name, flag: match.away_flag }
+                  ]}
+                  value={p.advance || null}
+                  locked={false}
+                  onChange={(value) => changeResultBonus(match, { advance: value as BonusSide })}
+                />
+                <BonusChoiceGroup
+                  label="Primer gol"
+                  options={[
+                    { value: 'H', label: match.home_name, flag: match.home_flag },
+                    { value: 'A', label: match.away_name, flag: match.away_flag },
+                    { value: 'N', label: 'Sin gol' }
+                  ]}
+                  value={p.first_goal || null}
+                  locked={false}
+                  onChange={(value) => changeResultBonus(match, { first_goal: value as FirstGoalPick })}
+                />
+              </div>
+            </div>}
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button disabled={!dirty || !canSave} onClick={() => saveResult(match)} className="h-10 rounded-lg bg-pitch text-sm font-black text-white disabled:bg-slate-200 disabled:text-slate-400">Guardar</button>
               {(p.home_goals !== null || p.away_goals !== null || match.home_goals !== null || match.away_goals !== null) && <button onClick={() => clearResult(match)} className="h-10 rounded-lg bg-slate-100 text-xs font-black text-slate-500">Limpiar</button>}

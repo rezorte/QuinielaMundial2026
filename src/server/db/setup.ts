@@ -39,6 +39,8 @@ export async function setupDatabase() {
       kickoff_utc DATETIME NOT NULL,
       home_goals TINYINT NULL,
       away_goals TINYINT NULL,
+      advance CHAR(1) NULL,
+      first_goal CHAR(1) NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_matches_kickoff (kickoff_utc),
@@ -62,6 +64,8 @@ export async function setupDatabase() {
       match_id VARCHAR(24) NOT NULL,
       home_goals TINYINT NOT NULL,
       away_goals TINYINT NOT NULL,
+      advance_pick CHAR(1) NULL,
+      first_goal_pick CHAR(1) NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (player_id, match_id),
       CONSTRAINT fk_picks_player FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
@@ -119,6 +123,38 @@ export async function setupDatabase() {
   );
   if (activeColumns.length === 0) {
     await db.execute(`ALTER TABLE players ADD COLUMN active TINYINT NOT NULL DEFAULT 1 AFTER birth_year`);
+  }
+
+  const matchColumns = [
+    ['advance', 'CHAR(1) NULL AFTER away_goals'],
+    ['first_goal', 'CHAR(1) NULL AFTER advance']
+  ];
+  for (const [columnName, columnDefinition] of matchColumns) {
+    const [columns] = await db.execute<any[]>(
+      `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = 'matches' AND COLUMN_NAME = :column_name`,
+      { schema_name: dbName, column_name: columnName }
+    );
+    if (columns.length === 0) {
+      await db.execute(`ALTER TABLE matches ADD COLUMN ${columnName} ${columnDefinition}`);
+    }
+  }
+
+  const pickColumns = [
+    ['advance_pick', 'CHAR(1) NULL AFTER away_goals'],
+    ['first_goal_pick', 'CHAR(1) NULL AFTER advance_pick']
+  ];
+  for (const [columnName, columnDefinition] of pickColumns) {
+    const [columns] = await db.execute<any[]>(
+      `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = 'picks' AND COLUMN_NAME = :column_name`,
+      { schema_name: dbName, column_name: columnName }
+    );
+    if (columns.length === 0) {
+      await db.execute(`ALTER TABLE picks ADD COLUMN ${columnName} ${columnDefinition}`);
+    }
   }
 
   const teamInfoColumns = [
