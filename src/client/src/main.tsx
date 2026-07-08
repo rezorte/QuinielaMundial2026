@@ -522,11 +522,14 @@ function MatchCard({ match, allMatches = [], pick, setScore, setPickPatch, force
   return (
     <article className={`overflow-hidden rounded-lg bg-white border shadow-md ${knockout ? 'border-slate-300 shadow-slate-200/80' : 'border-slate-200 shadow-slate-200/60'}`}>
       {knockout && <div className="h-1 bg-slate-200" />}
-      <div className={`flex items-center justify-between border-b px-4 py-3 ${knockout ? 'border-slate-100 bg-white' : 'border-slate-100'}`}>
-        <span className={`inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] ${knockout ? 'text-slate-600' : 'text-slate-500'}`}>
-          {knockout && <Trophy size={15} strokeWidth={2.6} className="text-triondaGold" />}
-          {matchRoundLabel(match)} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}
-        </span>
+      <div className={`flex items-center justify-between gap-3 border-b px-4 py-3 ${knockout ? 'border-slate-100 bg-white' : 'border-slate-100'}`}>
+        <div className={`min-w-0 text-xs font-black uppercase tracking-[0.16em] ${knockout ? 'text-slate-600' : 'text-slate-500'}`}>
+          <div className="flex min-w-0 items-center gap-2">
+            {knockout && <Trophy size={15} strokeWidth={2.6} className="shrink-0 text-triondaGold" />}
+            <span className="truncate">{matchRoundLabel(match)}</span>
+          </div>
+          <div className="mt-0.5 text-[10px] tracking-[0.12em] text-slate-400">{localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</div>
+        </div>
         {saving ? <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-black text-pitch">Guardando</span> : locked ? <span className="flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-black text-triondaRed"><Lock size={14} /> Cerrado</span> : null}
       </div>
       <div className="grid grid-cols-2 gap-3 p-4">
@@ -621,13 +624,13 @@ function MatchPicksPanel({ match }: { match: Match }) {
   return (
     <div className="border-t border-slate-100 px-4 pb-4">
       <button onClick={toggle} className="mt-1 w-full rounded-lg bg-slate-50 px-3 py-2 text-left text-sm font-black text-slate-600">
-        {isBonusMatch(match) ? 'Lectura de la familia' : 'Picks familiares'}
+        Picks familiares
       </button>
       {open && <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-200/40">
         {picks.length === 0 && <div className="p-3 text-center text-sm font-bold text-slate-400">Todavía no hay picks.</div>}
         {picks.length > 0 && <FamilyTrendSummary match={match} picks={picks} />}
         {picks.length > 0 && <div className="border-t border-slate-100">
-          <div className="bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">{isBonusMatch(match) ? 'Guerra de picks' : 'Lista familiar'}</div>
+          <div className="bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Lista familiar</div>
           {picks.map((row) => <div key={row.player_id} className="grid grid-cols-[minmax(0,1fr)_118px_50px] items-center gap-2 border-t border-slate-100 px-3 py-2 first:border-t-0">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-1.5">
@@ -666,7 +669,7 @@ function PlayerPlayPanel({ match, standings, player }: { match: Match; standings
   return (
     <div className="border-t border-slate-100 px-4 pb-4">
       <button onClick={toggle} className="mt-1 w-full rounded-lg bg-slate-100 px-3 py-2 text-left text-sm font-black text-pitch">
-        {isBonusMatch(match) ? 'Camino al podio' : 'Tu jugada'}
+        Tu jugada
       </button>
       {open && <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/40">
         {!drama && <div className="text-center text-sm font-bold text-slate-400">Todavía no hay datos familiares para este partido.</div>}
