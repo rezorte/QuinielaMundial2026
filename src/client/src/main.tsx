@@ -424,8 +424,8 @@ function FillView({ matches, picks, setPicks, standings, player, showStats, show
         <div className="min-w-0 px-3 text-center">
           <h2 className="text-xl font-black capitalize leading-6 text-slate-950 sm:text-3xl">{days[index] ? localWeekday(dayMatches[0].kickoff_utc) : ''}</h2>
           <div className="text-base font-black capitalize leading-5 text-slate-500 sm:text-xl">{days[index] ? localDateLabel(dayMatches[0].kickoff_utc) : ''}</div>
-          <p className={`mt-1 inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${dayIsKnockout ? 'bg-slate-950 text-triondaGold shadow-sm shadow-amber-100' : 'text-pitch'}`}>
-            {dayIsKnockout && <Trophy size={13} strokeWidth={2.8} className="mr-1.5" />}
+          <p className={`mt-1 inline-flex items-center justify-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${dayIsKnockout ? 'border-slate-200 bg-white text-slate-700 shadow-sm shadow-slate-200/60' : 'border-transparent text-pitch'}`}>
+            {dayIsKnockout && <Trophy size={13} strokeWidth={2.6} className="mr-1.5 text-triondaGold" />}
             {dayIsKnockout ? 'Recta final' : dayRoundLabel(dayMatches[0])} · {dayMatches.length} partidos
           </p>
         </div>
@@ -520,11 +520,11 @@ function MatchCard({ match, allMatches = [], pick, setScore, setPickPatch, force
   const points = pickPoints(pick, match);
   const knockout = isBonusMatch(match);
   return (
-    <article className={`overflow-hidden rounded-lg bg-white border shadow-md ${knockout ? 'border-amber-200 shadow-amber-100/80' : 'border-slate-200 shadow-slate-200/60'}`}>
-      {knockout && <div className="h-1.5 bg-gradient-to-r from-triondaGold via-slate-950 to-triondaGold" />}
-      <div className={`flex items-center justify-between border-b px-4 py-3 ${knockout ? 'border-amber-100 bg-amber-50/70' : 'border-slate-100'}`}>
-        <span className={`inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] ${knockout ? 'text-amber-800' : 'text-slate-500'}`}>
-          {knockout && <Trophy size={15} strokeWidth={2.8} className="text-triondaGold" />}
+    <article className={`overflow-hidden rounded-lg bg-white border shadow-md ${knockout ? 'border-slate-300 shadow-slate-200/80' : 'border-slate-200 shadow-slate-200/60'}`}>
+      {knockout && <div className="h-1 bg-slate-200" />}
+      <div className={`flex items-center justify-between border-b px-4 py-3 ${knockout ? 'border-slate-100 bg-white' : 'border-slate-100'}`}>
+        <span className={`inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] ${knockout ? 'text-slate-600' : 'text-slate-500'}`}>
+          {knockout && <Trophy size={15} strokeWidth={2.6} className="text-triondaGold" />}
           {matchRoundLabel(match)} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}
         </span>
         {saving ? <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-black text-pitch">Guardando</span> : locked ? <span className="flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-black text-triondaRed"><Lock size={14} /> Cerrado</span> : null}
@@ -780,7 +780,7 @@ function FamilyTrendSummary({ match, picks }: { match: Match; picks: MatchPick[]
   const trend = familyTrend(match, picks);
   return (
     <div className="bg-slate-50 p-3">
-      <div className={`mb-2 text-[10px] font-black uppercase tracking-[0.12em] ${isBonusMatch(match) ? 'text-amber-700' : 'text-slate-400'}`}>{isBonusMatch(match) ? 'Lectura de eliminatoria' : 'Tendencia familiar'}</div>
+      <div className={`mb-2 text-[10px] font-black uppercase tracking-[0.12em] ${isBonusMatch(match) ? 'text-slate-500' : 'text-slate-400'}`}>{isBonusMatch(match) ? 'Lectura de eliminatoria' : 'Tendencia familiar'}</div>
       <div className="grid grid-cols-3 gap-2">
         <TrendPill label={match.home_name} value={trend.homePercent} active={trend.leader === 'home'} />
         <TrendPill label="Empate" value={trend.drawPercent} active={trend.leader === 'draw'} />
@@ -1354,12 +1354,12 @@ function SquadLine({ label, players }: { label: string; players?: string[] }) {
 
 function TeamScore({ name, flag, value, locked, knockout = false, onMinus, onPlus }: { name: string; flag: string; value?: number; locked: boolean; knockout?: boolean; onMinus: () => void; onPlus: () => void }) {
   return (
-    <div className={`rounded-lg border p-2 text-center ${knockout ? 'border-amber-100 bg-white shadow-sm shadow-amber-100/80' : 'border-transparent'}`}>
+    <div className={`rounded-lg border p-2 text-center ${knockout ? 'border-slate-200 bg-slate-50/60 shadow-sm shadow-slate-200/60' : 'border-transparent'}`}>
       <img src={flagUrl(flag)} alt="" className="mx-auto h-12 w-16 object-contain" />
       <div className="mt-2 min-h-12 text-lg font-black leading-6 text-slate-950">{name}</div>
       <div className="mt-3 grid grid-cols-[44px_1fr_44px] items-center gap-2">
         <button disabled={locked} onClick={onMinus} className="score-btn">-</button>
-        <div className={`rounded-lg px-1 py-1 text-4xl font-black leading-none ${knockout ? 'bg-slate-950 text-triondaGold shadow-inner' : 'text-slate-950'}`}>{value ?? '-'}</div>
+        <div className={`rounded-lg px-1 py-1 text-4xl font-black leading-none ${knockout ? 'bg-white text-slate-950 ring-1 ring-slate-200 shadow-sm' : 'text-slate-950'}`}>{value ?? '-'}</div>
         <button disabled={locked} onClick={onPlus} className="score-btn filled">+</button>
       </div>
     </div>
@@ -1371,14 +1371,14 @@ function KnockoutPickControls({ match, pick, locked, onChange }: { match: Match;
   const firstGoalAuto = effectiveFirstGoal(pick.home_goals, pick.away_goals, null);
   const firstGoalOptions = firstGoalChoiceOptions(match, pick.home_goals, pick.away_goals);
   return (
-    <div className="mx-4 mb-4 rounded-lg border border-amber-200 bg-amber-50/70 p-3 shadow-sm shadow-amber-100/70">
+    <div className="mx-4 mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-sm shadow-slate-200/60">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Retos de eliminatoria</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Retos de eliminatoria</div>
           <div className="mt-0.5 text-xs font-black text-slate-600">Cada detalle puede mover la tabla</div>
         </div>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-950 text-triondaGold">
-          <Trophy size={16} strokeWidth={2.8} />
+        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-triondaGold shadow-sm">
+          <Trophy size={16} strokeWidth={2.6} />
         </div>
       </div>
       <div className="grid gap-3 min-[520px]:grid-cols-2">
@@ -1419,9 +1419,9 @@ function KnockoutPickControls({ match, pick, locked, onChange }: { match: Match;
 function AutoBonusValue({ label, value, homeName, homeFlag, awayName, awayFlag }: { label: string; value: FirstGoalPick; homeName: string; homeFlag: string; awayName: string; awayFlag: string }) {
   const team = value === 'H' ? { name: homeName, flag: homeFlag } : value === 'A' ? { name: awayName, flag: awayFlag } : null;
   return (
-    <div className="rounded-lg bg-white p-2 shadow-sm shadow-amber-100/80 ring-1 ring-amber-200/80">
-      <b className="mb-2 block text-[10px] font-black uppercase tracking-[0.12em] text-amber-700">{label} · +1</b>
-      <span className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-lg border border-amber-100 bg-amber-50/50 px-2 py-2 text-center text-slate-700">
+    <div className="rounded-lg bg-white p-2 shadow-sm shadow-slate-200/70 ring-1 ring-slate-200/80">
+      <b className="mb-2 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label} · +1</b>
+      <span className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-center text-slate-700">
         {team ? <>
           <img src={flagUrl(team.flag)} alt="" className="h-7 w-10 rounded-sm object-cover shadow-sm" />
           <span className="line-clamp-2 max-w-full text-sm font-black leading-4">{team.name}</span>
@@ -1433,12 +1433,12 @@ function AutoBonusValue({ label, value, homeName, homeFlag, awayName, awayFlag }
 
 function BonusChoiceGroup({ label, options, value, locked, selectedIcon, onChange }: { label: string; options: Array<{ value: string; label: string; flag?: string }>; value: string | null; locked: boolean; selectedIcon?: string; onChange: (value: string) => void }) {
   return (
-    <div className="rounded-lg bg-white p-2 shadow-sm shadow-amber-100/80 ring-1 ring-amber-200/80">
-      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-700">{label} · +1</div>
+    <div className="rounded-lg bg-white p-2 shadow-sm shadow-slate-200/70 ring-1 ring-slate-200/80">
+      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label} · +1</div>
       <div className="grid grid-cols-2 gap-2">
         {options.map((option) => {
           const selected = value === option.value;
-          return <button key={option.value} disabled={locked} onClick={() => onChange(option.value)} className={`relative min-h-20 rounded-lg border px-2 py-2 text-center shadow-sm transition disabled:opacity-50 ${selected ? 'border-slate-950 bg-slate-950 text-triondaGold shadow-slate-300/80' : 'border-amber-100 bg-amber-50/50 text-slate-700 hover:border-amber-200 hover:bg-white'}`}>
+          return <button key={option.value} disabled={locked} onClick={() => onChange(option.value)} className={`relative min-h-20 rounded-lg border px-2 py-2 text-center shadow-sm transition disabled:opacity-50 ${selected ? 'border-slate-950 bg-white text-slate-950 ring-2 ring-slate-950/10 shadow-slate-300/80' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white'}`}>
           {selected && selectedIcon && <span className={`absolute right-1.5 top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-black leading-none shadow-sm ${selectedIcon === '✓' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-950'}`}>{selectedIcon}</span>}
           <span className="flex h-full flex-col items-center justify-center gap-1.5">
             {option.flag && <img src={flagUrl(option.flag)} alt="" className="h-7 w-10 rounded-sm object-cover shadow-sm" />}
@@ -1464,19 +1464,19 @@ function Podium({ standings, player }: { standings: Standing[]; player: Player }
   const podiumRows = [standings[1], standings[0], standings[2]];
   const configs = [
     { rank: 2, label: 'Plata', height: 'h-20', accent: 'bg-slate-300', text: 'text-slate-700', ring: 'ring-slate-200', Icon: Medal },
-    { rank: 1, label: 'Líder', height: 'h-28', accent: 'bg-triondaGold', text: 'text-slate-950', ring: 'ring-amber-200', Icon: Crown },
+    { rank: 1, label: 'Líder', height: 'h-28', accent: 'bg-slate-950', text: 'text-slate-950', ring: 'ring-slate-300', Icon: Crown },
     { rank: 3, label: 'Bronce', height: 'h-16', accent: 'bg-[#C98B58]', text: 'text-slate-800', ring: 'ring-orange-200', Icon: Medal }
   ];
 
   return (
-    <section className="mb-6 overflow-hidden rounded-lg border border-amber-200 bg-white p-4 shadow-md shadow-amber-100/80">
+    <section className="mb-6 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-md shadow-slate-200/70">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Rumbo a la final</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Rumbo a la final</div>
           <div className="mt-0.5 text-sm font-black text-slate-950">Top 3 en zona de copa</div>
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 text-triondaGold shadow-md shadow-slate-300/70">
-          <Trophy size={20} strokeWidth={2.8} />
+        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-950 shadow-sm shadow-slate-200/70">
+          <Trophy size={20} strokeWidth={2.6} className="text-triondaGold" />
         </div>
       </div>
       <div className="grid grid-cols-3 items-end gap-2 text-center">
