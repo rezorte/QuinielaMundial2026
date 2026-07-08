@@ -386,6 +386,7 @@ function FillView({ matches, picks, setPicks, standings, player, showStats, show
   const days = Array.from(new Set(matches.map((m) => localDateKey(m.kickoff_utc))));
   const [index, setIndex] = useState(0);
   const dayMatches = matches.filter((m) => localDateKey(m.kickoff_utc) === days[index]);
+  const dayIsKnockout = dayMatches.some((match) => isBonusMatch(match));
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [savedPulse, setSavedPulse] = useState(false);
   const isSaving = Object.values(saving).some(Boolean);
@@ -423,7 +424,10 @@ function FillView({ matches, picks, setPicks, standings, player, showStats, show
         <div className="min-w-0 px-3 text-center">
           <h2 className="text-xl font-black capitalize leading-6 text-slate-950 sm:text-3xl">{days[index] ? localWeekday(dayMatches[0].kickoff_utc) : ''}</h2>
           <div className="text-base font-black capitalize leading-5 text-slate-500 sm:text-xl">{days[index] ? localDateLabel(dayMatches[0].kickoff_utc) : ''}</div>
-          <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-pitch">{dayRoundLabel(dayMatches[0])} · {dayMatches.length} partidos</p>
+          <p className={`mt-1 inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${dayIsKnockout ? 'bg-slate-950 text-triondaGold shadow-sm shadow-amber-100' : 'text-pitch'}`}>
+            {dayIsKnockout && <Trophy size={13} strokeWidth={2.8} className="mr-1.5" />}
+            {dayIsKnockout ? 'Recta final' : dayRoundLabel(dayMatches[0])} · {dayMatches.length} partidos
+          </p>
         </div>
         <button className="icon-btn" disabled={index === days.length - 1} onClick={() => setIndex(index + 1)}><ChevronRight /></button>
       </div>
@@ -514,15 +518,20 @@ function personalHistory(matches: Match[], picks: Record<string, Pick>) {
 function MatchCard({ match, allMatches = [], pick, setScore, setPickPatch, forceOpen = false, saving = false, standings = [], player, showStats = false, showMatchPicks = false, showPickScores = false }: { match: Match; allMatches?: Match[]; pick?: Pick; setScore: (m: Match, s: 'home_goals' | 'away_goals', d: number) => void; setPickPatch?: (m: Match, patch: Partial<Pick>) => void; forceOpen?: boolean; saving?: boolean; standings?: Standing[]; player?: Player; showStats?: boolean; showMatchPicks?: boolean; showPickScores?: boolean }) {
   const locked = Boolean(match.locked) && !forceOpen;
   const points = pickPoints(pick, match);
+  const knockout = isBonusMatch(match);
   return (
-    <article className="rounded-lg bg-white border border-slate-200 shadow-md shadow-slate-200/60">
-      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-        <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{matchRoundLabel(match)} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}</span>
+    <article className={`overflow-hidden rounded-lg bg-white border shadow-md ${knockout ? 'border-amber-200 shadow-amber-100/80' : 'border-slate-200 shadow-slate-200/60'}`}>
+      {knockout && <div className="h-1.5 bg-gradient-to-r from-triondaGold via-slate-950 to-triondaGold" />}
+      <div className={`flex items-center justify-between border-b px-4 py-3 ${knockout ? 'border-amber-100 bg-amber-50/70' : 'border-slate-100'}`}>
+        <span className={`inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] ${knockout ? 'text-amber-800' : 'text-slate-500'}`}>
+          {knockout && <Trophy size={15} strokeWidth={2.8} className="text-triondaGold" />}
+          {matchRoundLabel(match)} · {localDay(match.kickoff_utc)} · {localTime(match.kickoff_utc)}
+        </span>
         {saving ? <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-black text-pitch">Guardando</span> : locked ? <span className="flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-xs font-black text-triondaRed"><Lock size={14} /> Cerrado</span> : null}
       </div>
       <div className="grid grid-cols-2 gap-3 p-4">
-        <TeamScore name={match.home_name} flag={match.home_flag} value={pick?.home_goals} locked={locked} onMinus={() => setScore(match, 'home_goals', -1)} onPlus={() => setScore(match, 'home_goals', 1)} />
-        <TeamScore name={match.away_name} flag={match.away_flag} value={pick?.away_goals} locked={locked} onMinus={() => setScore(match, 'away_goals', -1)} onPlus={() => setScore(match, 'away_goals', 1)} />
+        <TeamScore name={match.home_name} flag={match.home_flag} value={pick?.home_goals} locked={locked} knockout={knockout} onMinus={() => setScore(match, 'home_goals', -1)} onPlus={() => setScore(match, 'home_goals', 1)} />
+        <TeamScore name={match.away_name} flag={match.away_flag} value={pick?.away_goals} locked={locked} knockout={knockout} onMinus={() => setScore(match, 'away_goals', -1)} onPlus={() => setScore(match, 'away_goals', 1)} />
       </div>
       {isBonusMatch(match) && pick && setPickPatch && <KnockoutPickControls match={match} pick={pick} locked={locked} onChange={(patch) => setPickPatch(match, patch)} />}
       {showPickScores && points !== null && pick && <RealResultSummary match={match} pick={pick} />}
@@ -612,13 +621,13 @@ function MatchPicksPanel({ match }: { match: Match }) {
   return (
     <div className="border-t border-slate-100 px-4 pb-4">
       <button onClick={toggle} className="mt-1 w-full rounded-lg bg-slate-50 px-3 py-2 text-left text-sm font-black text-slate-600">
-        Picks familiares
+        {isBonusMatch(match) ? 'Lectura de la familia' : 'Picks familiares'}
       </button>
       {open && <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-200/40">
         {picks.length === 0 && <div className="p-3 text-center text-sm font-bold text-slate-400">Todavía no hay picks.</div>}
         {picks.length > 0 && <FamilyTrendSummary match={match} picks={picks} />}
         {picks.length > 0 && <div className="border-t border-slate-100">
-          <div className="bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Lista familiar</div>
+          <div className="bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">{isBonusMatch(match) ? 'Guerra de picks' : 'Lista familiar'}</div>
           {picks.map((row) => <div key={row.player_id} className="grid grid-cols-[minmax(0,1fr)_118px_50px] items-center gap-2 border-t border-slate-100 px-3 py-2 first:border-t-0">
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-1.5">
@@ -657,7 +666,7 @@ function PlayerPlayPanel({ match, standings, player }: { match: Match; standings
   return (
     <div className="border-t border-slate-100 px-4 pb-4">
       <button onClick={toggle} className="mt-1 w-full rounded-lg bg-slate-100 px-3 py-2 text-left text-sm font-black text-pitch">
-        Tu jugada
+        {isBonusMatch(match) ? 'Camino al podio' : 'Tu jugada'}
       </button>
       {open && <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/40">
         {!drama && <div className="text-center text-sm font-bold text-slate-400">Todavía no hay datos familiares para este partido.</div>}
@@ -738,7 +747,9 @@ function FlagScore({ homeFlag, awayFlag, homeGoals, awayGoals, size = 'sm', firs
   const textSize = size === 'md' ? 'text-sm' : 'text-xs';
   const iconSize = size === 'md' ? 'text-[11px] leading-3' : 'text-[9px] leading-3';
   const hasIndicators = firstGoal === 'H' || firstGoal === 'A' || advance === 'H' || advance === 'A';
-  const gridCols = 'grid-cols-[auto_minmax(0,0.8rem)_0.4rem_minmax(0,0.8rem)_auto]';
+  const scoreCol = size === 'md' ? '1rem' : '0.9rem';
+  const dashCol = size === 'md' ? '0.5rem' : '0.45rem';
+  const gridTemplateColumns = `auto ${scoreCol} ${dashCol} ${scoreCol} auto`;
   const flag = (flagCode: string) => <img src={flagUrl(flagCode)} alt="" className={`${flagSize} rounded-sm object-cover shadow-sm`} />;
   const indicator = (side: 'H' | 'A', target: 'flag' | 'score') => {
     if (target === 'flag' && advance === side) return <span className={`inline-flex items-center justify-center rounded-full bg-emerald-500 font-black text-white shadow-sm ${size === 'md' ? 'h-3.5 w-3.5 text-[9px]' : 'h-3 w-3 text-[8px]'}`}>✓</span>;
@@ -747,19 +758,19 @@ function FlagScore({ homeFlag, awayFlag, homeGoals, awayGoals, size = 'sm', firs
   };
   return (
     <div className={`inline-flex max-w-full flex-col rounded-full bg-white px-2 py-1 font-black text-slate-950 shadow-sm shadow-slate-200/60 ${textSize}`}>
-      {hasIndicators && <div className={`grid ${gridCols} items-end gap-1.5 text-center`}>
-        <span>{indicator('H', 'flag')}</span>
-        <span>{indicator('H', 'score')}</span>
+      {hasIndicators && <div className="grid items-end gap-1.5 text-center" style={{ gridTemplateColumns }}>
+        <span className="flex justify-center">{indicator('H', 'flag')}</span>
+        <span className="flex justify-center">{indicator('H', 'score')}</span>
         <span />
-        <span>{indicator('A', 'score')}</span>
-        <span>{indicator('A', 'flag')}</span>
+        <span className="flex justify-center">{indicator('A', 'score')}</span>
+        <span className="flex justify-center">{indicator('A', 'flag')}</span>
       </div>}
-      <div className={`grid ${gridCols} items-center gap-1.5 text-center`}>
-        <span>{flag(homeFlag)}</span>
-        <span>{homeGoals}</span>
+      <div className="grid items-center gap-1.5 text-center" style={{ gridTemplateColumns }}>
+        <span className="flex justify-center">{flag(homeFlag)}</span>
+        <span className="flex justify-center">{homeGoals}</span>
         <span className="text-slate-300">-</span>
-        <span>{awayGoals}</span>
-        <span>{flag(awayFlag)}</span>
+        <span className="flex justify-center">{awayGoals}</span>
+        <span className="flex justify-center">{flag(awayFlag)}</span>
       </div>
     </div>
   );
@@ -769,7 +780,7 @@ function FamilyTrendSummary({ match, picks }: { match: Match; picks: MatchPick[]
   const trend = familyTrend(match, picks);
   return (
     <div className="bg-slate-50 p-3">
-      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Tendencia familiar</div>
+      <div className={`mb-2 text-[10px] font-black uppercase tracking-[0.12em] ${isBonusMatch(match) ? 'text-amber-700' : 'text-slate-400'}`}>{isBonusMatch(match) ? 'Lectura de eliminatoria' : 'Tendencia familiar'}</div>
       <div className="grid grid-cols-3 gap-2">
         <TrendPill label={match.home_name} value={trend.homePercent} active={trend.leader === 'home'} />
         <TrendPill label="Empate" value={trend.drawPercent} active={trend.leader === 'draw'} />
@@ -1341,14 +1352,14 @@ function SquadLine({ label, players }: { label: string; players?: string[] }) {
   </div>;
 }
 
-function TeamScore({ name, flag, value, locked, onMinus, onPlus }: { name: string; flag: string; value?: number; locked: boolean; onMinus: () => void; onPlus: () => void }) {
+function TeamScore({ name, flag, value, locked, knockout = false, onMinus, onPlus }: { name: string; flag: string; value?: number; locked: boolean; knockout?: boolean; onMinus: () => void; onPlus: () => void }) {
   return (
-    <div className="rounded-lg border border-transparent p-2 text-center">
+    <div className={`rounded-lg border p-2 text-center ${knockout ? 'border-amber-100 bg-white shadow-sm shadow-amber-100/80' : 'border-transparent'}`}>
       <img src={flagUrl(flag)} alt="" className="mx-auto h-12 w-16 object-contain" />
       <div className="mt-2 min-h-12 text-lg font-black leading-6 text-slate-950">{name}</div>
       <div className="mt-3 grid grid-cols-[44px_1fr_44px] items-center gap-2">
         <button disabled={locked} onClick={onMinus} className="score-btn">-</button>
-        <div className="text-4xl font-black text-slate-950">{value ?? '-'}</div>
+        <div className={`rounded-lg px-1 py-1 text-4xl font-black leading-none ${knockout ? 'bg-slate-950 text-triondaGold shadow-inner' : 'text-slate-950'}`}>{value ?? '-'}</div>
         <button disabled={locked} onClick={onPlus} className="score-btn filled">+</button>
       </div>
     </div>
@@ -1360,10 +1371,20 @@ function KnockoutPickControls({ match, pick, locked, onChange }: { match: Match;
   const firstGoalAuto = effectiveFirstGoal(pick.home_goals, pick.away_goals, null);
   const firstGoalOptions = firstGoalChoiceOptions(match, pick.home_goals, pick.away_goals);
   return (
-    <div className="mx-4 mb-4 rounded-lg border border-slate-100 bg-slate-50 p-3">
+    <div className="mx-4 mb-4 rounded-lg border border-amber-200 bg-amber-50/70 p-3 shadow-sm shadow-amber-100/70">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Retos de eliminatoria</div>
+          <div className="mt-0.5 text-xs font-black text-slate-600">Cada detalle puede mover la tabla</div>
+        </div>
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-950 text-triondaGold">
+          <Trophy size={16} strokeWidth={2.8} />
+        </div>
+      </div>
       <div className="grid gap-3 min-[520px]:grid-cols-2">
         {needsAdvance ? <BonusChoiceGroup
           label="¿Quién clasifica?"
+          selectedIcon="✓"
           options={[
             { value: 'H', label: match.home_name, flag: match.home_flag },
             { value: 'A', label: match.away_name, flag: match.away_flag }
@@ -1384,6 +1405,7 @@ function KnockoutPickControls({ match, pick, locked, onChange }: { match: Match;
           awayFlag={match.away_flag}
         /> : <BonusChoiceGroup
           label="¿Quién anota el primer gol?"
+          selectedIcon="⚽"
           options={firstGoalOptions}
           value={pick.first_goal_pick || null}
           locked={locked}
@@ -1397,9 +1419,9 @@ function KnockoutPickControls({ match, pick, locked, onChange }: { match: Match;
 function AutoBonusValue({ label, value, homeName, homeFlag, awayName, awayFlag }: { label: string; value: FirstGoalPick; homeName: string; homeFlag: string; awayName: string; awayFlag: string }) {
   const team = value === 'H' ? { name: homeName, flag: homeFlag } : value === 'A' ? { name: awayName, flag: awayFlag } : null;
   return (
-    <div className="rounded-lg bg-white p-2 shadow-sm shadow-slate-200/70 ring-1 ring-slate-200/70">
-      <b className="mb-2 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label} · +1</b>
-      <span className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-center text-slate-700">
+    <div className="rounded-lg bg-white p-2 shadow-sm shadow-amber-100/80 ring-1 ring-amber-200/80">
+      <b className="mb-2 block text-[10px] font-black uppercase tracking-[0.12em] text-amber-700">{label} · +1</b>
+      <span className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-lg border border-amber-100 bg-amber-50/50 px-2 py-2 text-center text-slate-700">
         {team ? <>
           <img src={flagUrl(team.flag)} alt="" className="h-7 w-10 rounded-sm object-cover shadow-sm" />
           <span className="line-clamp-2 max-w-full text-sm font-black leading-4">{team.name}</span>
@@ -1409,17 +1431,21 @@ function AutoBonusValue({ label, value, homeName, homeFlag, awayName, awayFlag }
   );
 }
 
-function BonusChoiceGroup({ label, options, value, locked, onChange }: { label: string; options: Array<{ value: string; label: string; flag?: string }>; value: string | null; locked: boolean; onChange: (value: string) => void }) {
+function BonusChoiceGroup({ label, options, value, locked, selectedIcon, onChange }: { label: string; options: Array<{ value: string; label: string; flag?: string }>; value: string | null; locked: boolean; selectedIcon?: string; onChange: (value: string) => void }) {
   return (
-    <div className="rounded-lg bg-white p-2 shadow-sm shadow-slate-200/70 ring-1 ring-slate-200/70">
-      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label} · +1</div>
+    <div className="rounded-lg bg-white p-2 shadow-sm shadow-amber-100/80 ring-1 ring-amber-200/80">
+      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-700">{label} · +1</div>
       <div className="grid grid-cols-2 gap-2">
-        {options.map((option) => <button key={option.value} disabled={locked} onClick={() => onChange(option.value)} className={`min-h-20 rounded-lg border px-2 py-2 text-center shadow-sm transition disabled:opacity-50 ${value === option.value ? 'border-slate-950 bg-slate-950 text-white shadow-slate-300/80' : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white'}`}>
+        {options.map((option) => {
+          const selected = value === option.value;
+          return <button key={option.value} disabled={locked} onClick={() => onChange(option.value)} className={`relative min-h-20 rounded-lg border px-2 py-2 text-center shadow-sm transition disabled:opacity-50 ${selected ? 'border-slate-950 bg-slate-950 text-triondaGold shadow-slate-300/80' : 'border-amber-100 bg-amber-50/50 text-slate-700 hover:border-amber-200 hover:bg-white'}`}>
+          {selected && selectedIcon && <span className={`absolute right-1.5 top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-black leading-none shadow-sm ${selectedIcon === '✓' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-950'}`}>{selectedIcon}</span>}
           <span className="flex h-full flex-col items-center justify-center gap-1.5">
             {option.flag && <img src={flagUrl(option.flag)} alt="" className="h-7 w-10 rounded-sm object-cover shadow-sm" />}
             <span className="line-clamp-2 max-w-full text-sm font-black leading-4">{option.label}</span>
           </span>
-        </button>)}
+        </button>;
+        })}
       </div>
     </div>
   );
@@ -1443,11 +1469,11 @@ function Podium({ standings, player }: { standings: Standing[]; player: Player }
   ];
 
   return (
-    <section className="mb-6 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-md shadow-slate-200/60">
+    <section className="mb-6 overflow-hidden rounded-lg border border-amber-200 bg-white p-4 shadow-md shadow-amber-100/80">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Podio actual</div>
-          <div className="mt-0.5 text-sm font-black text-slate-950">Los tres de arriba</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Rumbo a la final</div>
+          <div className="mt-0.5 text-sm font-black text-slate-950">Top 3 en zona de copa</div>
         </div>
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 text-triondaGold shadow-md shadow-slate-300/70">
           <Trophy size={20} strokeWidth={2.8} />
@@ -1911,6 +1937,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
               <div className="grid gap-3 min-[520px]:grid-cols-2">
                 {resultIsDraw ? <BonusChoiceGroup
                   label="¿Quién clasifica?"
+                  selectedIcon="✓"
                   options={[
                     { value: 'H', label: match.home_name, flag: match.home_flag },
                     { value: 'A', label: match.away_name, flag: match.away_flag }
@@ -1931,6 +1958,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
                   awayFlag={match.away_flag}
                 /> : <BonusChoiceGroup
                   label="¿Quién anota el primer gol?"
+                  selectedIcon="⚽"
                   options={resultFirstGoalOptions}
                   value={p.first_goal || null}
                   locked={false}
