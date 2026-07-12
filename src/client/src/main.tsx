@@ -189,6 +189,7 @@ function matchRoundLabel(match?: Match) {
   if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
   if (match.grp === 'O' && match.jornada === 5) return 'Ronda de 16';
   if (match.grp === 'Q' && match.jornada === 6) return 'Cuartos de final';
+  if (match.grp === 'Q' && match.jornada === 7) return 'Semifinales';
   return `Grupo ${match.grp}`;
 }
 
@@ -197,6 +198,7 @@ function matchStageLabel(match?: Match) {
   if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
   if (match.grp === 'O' && match.jornada === 5) return 'Ronda de 16';
   if (match.grp === 'Q' && match.jornada === 6) return 'Cuartos de final';
+  if (match.grp === 'Q' && match.jornada === 7) return 'Semifinales';
   return `Jornada ${match.jornada} · Grupo ${match.grp}`;
 }
 
@@ -205,6 +207,7 @@ function dayRoundLabel(match?: Match) {
   if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
   if (match.grp === 'O' && match.jornada === 5) return 'Ronda de 16';
   if (match.grp === 'Q' && match.jornada === 6) return 'Cuartos de final';
+  if (match.grp === 'Q' && match.jornada === 7) return 'Semifinales';
   return `Jornada ${match.jornada}`;
 }
 

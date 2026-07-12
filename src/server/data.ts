@@ -117,6 +117,8 @@ Q,6,FRA,MAR,2026-07-09 14:00
 Q,6,ESP,BEL,2026-07-10 13:00
 Q,6,NOR,ENG,2026-07-11 15:00
 Q,6,ARG,SUI,2026-07-11 19:00
+Q,7,FRA,ESP,2026-07-14 13:00
+Q,7,ENG,ARG,2026-07-15 13:00
 `.trim().split('\n').map((line) => {
   const [grp, jornada, home, away, cdmx] = line.split(',');
   return { grp, jornada: Number(jornada), home, away, cdmx };
