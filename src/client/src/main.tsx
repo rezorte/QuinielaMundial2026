@@ -185,11 +185,11 @@ function firstGoalChoiceOptions(match: Match, home: number | null | undefined, a
 }
 
 function advanceBonusLabel(match?: Match) {
-  return match && (match.grp === 'T' || (match.grp === 'Q' && match.jornada === 8)) ? '¿Quién gana en penales?' : '¿Quién clasifica?';
+  return match && (match.grp === 'T' || (match.grp === 'Q' && match.jornada === 8)) ? '¿Quién gana?' : '¿Quién clasifica?';
 }
 
 function advanceResultLabel(match?: Match) {
-  return match && (match.grp === 'T' || (match.grp === 'Q' && match.jornada === 8)) ? 'Penales' : 'Clasificó';
+  return match && (match.grp === 'T' || (match.grp === 'Q' && match.jornada === 8)) ? 'Ganó' : 'Clasificó';
 }
 
 function matchRoundLabel(match?: Match) {
