@@ -184,6 +184,14 @@ function firstGoalChoiceOptions(match: Match, home: number | null | undefined, a
   ];
 }
 
+function advanceBonusLabel(match?: Match) {
+  return match && (match.grp === 'T' || (match.grp === 'Q' && match.jornada === 8)) ? '¿Quién gana en penales?' : '¿Quién clasifica?';
+}
+
+function advanceResultLabel(match?: Match) {
+  return match && (match.grp === 'T' || (match.grp === 'Q' && match.jornada === 8)) ? 'Penales' : 'Clasificó';
+}
+
 function matchRoundLabel(match?: Match) {
   if (!match) return '';
   if (match.grp === 'R' && match.jornada === 4) return 'Ronda de 32';
@@ -581,7 +589,7 @@ function RealResultSummary({ match, pick }: { match: Match; pick: Pick }) {
           points={resultPoints}
         />
         {hasScore && showAdvance && <ScoreBreakdownRow
-          label="Clasificó"
+          label={advanceResultLabel(match)}
           value={<RealBonusValue value={match.advance} match={match} fallback="Pendiente" />}
           points={advancePoints}
         />}
@@ -883,7 +891,7 @@ function maxPointsForMatch(_match: Match) {
 }
 
 function isBonusMatch(match?: Match) {
-  return Boolean(match && match.grp === 'Q' && match.jornada >= 6);
+  return Boolean(match && ((match.grp === 'Q' && match.jornada >= 6) || (match.grp === 'T' && match.jornada === 8)));
 }
 
 function contextualStandingsForMatch(picks: MatchPick[], standings: Standing[], hasResult: boolean): Standing[] {
@@ -1395,7 +1403,7 @@ function KnockoutPickControls({ match, pick, locked, onChange }: { match: Match;
       </div>
       <div className="grid gap-3 min-[520px]:grid-cols-2">
         {needsAdvance ? <BonusChoiceGroup
-          label="¿Quién clasifica?"
+          label={advanceBonusLabel(match)}
           selectedIcon="✓"
           options={[
             { value: 'H', label: match.home_name, flag: match.home_flag },
@@ -1405,7 +1413,7 @@ function KnockoutPickControls({ match, pick, locked, onChange }: { match: Match;
           locked={locked}
           onChange={(value) => onChange({ advance_pick: value as BonusSide })}
         /> : <div className="rounded-lg bg-white px-3 py-2 text-xs font-bold leading-5 text-slate-500">
-          <b className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">¿Quién clasifica?</b>
+          <b className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">{advanceBonusLabel(match)}</b>
           Solo aplica si tu marcador queda empatado.
         </div>}
         {firstGoalAuto ? <AutoBonusValue
@@ -1948,7 +1956,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
             {isBonusMatch(match) && <div className="mt-3 rounded-lg bg-slate-50 p-3">
               <div className="grid gap-3 min-[520px]:grid-cols-2">
                 {resultIsDraw ? <BonusChoiceGroup
-                  label="¿Quién clasifica?"
+                  label={advanceBonusLabel(match)}
                   selectedIcon="✓"
                   options={[
                     { value: 'H', label: match.home_name, flag: match.home_flag },
@@ -1958,7 +1966,7 @@ function AdminView({ matches, reload }: { matches: Match[]; reload: () => void }
                   locked={false}
                   onChange={(value) => changeResultBonus(match, { advance: value as BonusSide })}
                 /> : <div className="rounded-lg bg-white px-3 py-2 text-xs font-bold leading-5 text-slate-500">
-                  <b className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">¿Quién clasifica?</b>
+                  <b className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">{advanceBonusLabel(match)}</b>
                   Solo aplica si el marcador queda empatado.
                 </div>}
                 {resultFirstGoal ? <AutoBonusValue

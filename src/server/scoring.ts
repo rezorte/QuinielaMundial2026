@@ -19,7 +19,7 @@ export function scorePick(
   const exact = pickHome === realHome && pickAway === realAway ? 1 : 0;
   const result = exact || outcome(pickHome, pickAway) === outcome(realHome, realAway) ? 1 : 0;
   const advance = advanceEnabled && pickHome === pickAway && pickAdvance && realAdvance && pickAdvance === realAdvance ? 1 : 0;
-  const firstGoal = effectiveFirstGoal(pickHome, pickAway, pickFirstGoal) === effectiveFirstGoal(realHome, realAway, realFirstGoal) ? 1 : 0;
+  const firstGoal = advanceEnabled && effectiveFirstGoal(pickHome, pickAway, pickFirstGoal) === effectiveFirstGoal(realHome, realAway, realFirstGoal) ? 1 : 0;
   return { points: (exact ? 3 : result ? 1 : 0) + advance + firstGoal, exact, result, advance, firstGoal };
 }
 

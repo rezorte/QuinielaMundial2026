@@ -44,12 +44,13 @@ function pointsSql(cutoffCondition?: string) {
     END
     + CASE
         WHEN ${cutoff}m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL
-          AND m.grp = 'Q' AND m.jornada >= 6 AND pk.home_goals = pk.away_goals
+          AND ((m.grp = 'Q' AND m.jornada >= 6) OR (m.grp = 'T' AND m.jornada = 8)) AND pk.home_goals = pk.away_goals
           AND pk.advance_pick IS NOT NULL AND m.advance IS NOT NULL AND pk.advance_pick = m.advance
         THEN 1 ELSE 0
       END
     + CASE
-        WHEN ${cutoff}m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL AND m.grp = 'Q' AND m.jornada >= 6
+        WHEN ${cutoff}m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL
+          AND ((m.grp = 'Q' AND m.jornada >= 6) OR (m.grp = 'T' AND m.jornada = 8))
           AND (
             CASE
               WHEN pk.home_goals = 0 AND pk.away_goals = 0 THEN 'N'
@@ -71,7 +72,7 @@ function pointsSql(cutoffCondition?: string) {
 }
 
 function isBonusMatchRow(row: { grp?: string | null; jornada?: number | null }) {
-  return row.grp === 'Q' && Number(row.jornada) >= 6;
+  return (row.grp === 'Q' && Number(row.jornada) >= 6) || (row.grp === 'T' && Number(row.jornada) === 8);
 }
 
 function lockedExpr() {
